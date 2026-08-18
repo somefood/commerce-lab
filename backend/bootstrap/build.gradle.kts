@@ -18,3 +18,14 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation(libs.archunit.junit5)
 }
+
+tasks.register<Test>("archTest") {
+    description = "아키텍처 불변 규칙만 검사한다"
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching("com.commercelab.architecture.*")
+    }
+}
