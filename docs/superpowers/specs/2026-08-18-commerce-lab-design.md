@@ -349,3 +349,19 @@ Claude는 답을 제시하지 않고 질문한다.
 | 이벤트 발행 | 트랜잭셔널 아웃박스 | 커밋 후 직접 발행 |
 | 인프라 | 처음부터 Docker Compose 풀셋 | H2/인메모리, 단계적 도입 |
 | 협업 경계 | 설계문서 + 실패 테스트까지 Claude | 뼈대 스캐폴딩까지, 설계문서만 |
+
+## 11. 환경 이식성
+
+여러 머신에서 동일한 협업 규칙이 적용되도록 규칙을 레포에 고정한다.
+
+| 위치 | git 추적 | 이식 | 용도 |
+|---|---|---|---|
+| `CLAUDE.md` (루트) | ✓ | ✓ | 역할 분담, 리뷰 방식, 아키텍처 불변 규칙 |
+| `.claude/settings.json` | ✓ | ✓ | 권한, 훅 |
+| `.claude/skills/` | ✓ | ✓ | 프로젝트 전용 스킬 |
+| `.claude/settings.local.json` | ✗ | ✗ | 머신별 예외 (gitignore) |
+| `~/.claude/CLAUDE.md` | ✗ | ✗ | 개인 전역 설정. 프로젝트 규칙을 여기 두지 않는다 |
+
+원격: https://github.com/somefood/commerce-lab (public)
+
+전역 설치 플러그인·스킬은 이식되지 않는다. 프로젝트에 필수인 것은 `.claude/skills/`에 넣어 커밋한다.
