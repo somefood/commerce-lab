@@ -69,12 +69,6 @@ class ArchitectureTest {
             .that().resideInAPackage("com.commercelab.bootstrap..")
             .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
             .because("bootstrap이 트랜잭션을 열면 여러 모듈이 한 트랜잭션에 묶인다. 그러면 M4에서 분리할 수 없다")
-            // bootstrap은 Task 4에서 첫 클래스가 생긴다. 그때까지 이 규칙은 0개 클래스에 매칭되는데,
-            // ArchUnit은 빈 매칭을 기본적으로 실패로 처리한다(archRule.failOnEmptyShould=true).
-            // 그 기본값은 "패키지 이름이 바뀌어 규칙이 아무것도 검사하지 않게 된 상태"를 잡기 위한 것이므로
-            // 전역으로 끄지 않고, 지금 비어 있는 것이 확실한 이 규칙에만 예외를 준다.
-            // Task 4에서 bootstrap에 클래스가 생기면 이 줄을 지운다.
-            .allowEmptyShould(true)
             .check(classes)
     }
 
@@ -85,12 +79,6 @@ class ArchitectureTest {
             .that().areDeclaredInClassesThat().resideInAPackage("com.commercelab.bootstrap..")
             .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
             .because("bootstrap이 트랜잭션을 열면 여러 모듈이 한 트랜잭션에 묶인다. 그러면 M4에서 분리할 수 없다")
-            // bootstrap은 Task 4에서 첫 클래스가 생긴다. 그때까지 이 규칙은 0개 클래스에 매칭되는데,
-            // ArchUnit은 빈 매칭을 기본적으로 실패로 처리한다(archRule.failOnEmptyShould=true).
-            // 그 기본값은 "패키지 이름이 바뀌어 규칙이 아무것도 검사하지 않게 된 상태"를 잡기 위한 것이므로
-            // 전역으로 끄지 않고, 지금 비어 있는 것이 확실한 이 규칙에만 예외를 준다.
-            // Task 4에서 bootstrap에 클래스가 생기면 이 줄을 지운다.
-            .allowEmptyShould(true)
             .check(classes)
     }
 }
