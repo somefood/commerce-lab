@@ -1,0 +1,21 @@
+# build
+build/
+out/
+.gradle/
+target/
+
+# node
+node_modules/
+.next/
+dist/
+
+# ide
+.idea/
+*.iml
+.vscode/
+
+# env / local
+.env
+.env.local
+.DS_Store
+.claude/settings.local.json
