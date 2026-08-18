@@ -19,3 +19,6 @@ dist/
 .env.local
 .DS_Store
 .claude/settings.local.json
+
+# SDD 작업 공간 (git 추적 안 함)
+.superpowers/

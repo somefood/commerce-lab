@@ -479,12 +479,16 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
-./gradlew build -x test
+./gradlew projects
+./gradlew classes testClasses
 ```
 
-기대: `BUILD SUCCESSFUL`. 7개 모듈이 모두 인식되어야 한다.
+기대: `BUILD SUCCESSFUL`. `projects` 출력에 7개 모듈이 모두 보여야 한다.
 
-`./gradlew projects`로 모듈 트리를 눈으로 확인한다.
+여기서 `./gradlew build`를 쓰지 않는 이유: `bootstrap`이 `org.springframework.boot`
+플러그인을 적용하므로 `build`가 `bootJar`를 호출하는데, 아직 `@SpringBootApplication`
+클래스가 없어 `Main class name has not been configured`로 반드시 실패한다.
+메인 클래스는 Task 4에서 생긴다. 전체 `build` 검증은 Task 4 Step 8이 담당한다.
 
 - [ ] **Step 12: 커밋**
 
