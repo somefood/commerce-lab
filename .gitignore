@@ -22,3 +22,6 @@ dist/
 
 # SDD 작업 공간 (git 추적 안 함)
 .superpowers/
+
+# gradle wrapper jar는 커밋한다 (다른 머신에서 clone 후 바로 빌드 가능해야 함)
+!gradle/wrapper/gradle-wrapper.jar
