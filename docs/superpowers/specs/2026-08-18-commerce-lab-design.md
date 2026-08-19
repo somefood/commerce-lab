@@ -377,5 +377,7 @@ Claude는 답을 제시하지 않고 질문한다.
 - 패키지 매니저는 npm을 쓴다 (pnpm 미설치).
 - k6는 설치하지 않고 Docker 이미지 `grafana/k6`로 실행한다.
 - Gradle CLI가 없으므로 모든 빌드는 `./gradlew` 래퍼로 한다 (Gradle 9.3.0, 2026-08-19 8.14.3에서 상향).
+- Kotlin 2.2.21. 2.1.20의 Gradle 플러그인이 legacy Usage 속성을 선언해 Gradle 10에서 에러가 되므로 함께 올렸다.
+- 의존성 버전 관리는 `io.spring.dependency-management` 플러그인 대신 Gradle 네이티브 `platform()`으로 한다.
 - Grafana는 3001 포트를 쓴다. 프론트엔드가 3000을 점유하기 때문이다.
 - jOOQ는 M0 범위에서 제외했다. 조회 최적화가 실제로 필요해지는 M1 3단계에서 도입한다.
