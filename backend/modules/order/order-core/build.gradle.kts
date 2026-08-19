@@ -1,5 +1,6 @@
 plugins {
-    id("commerce.spring-conventions")
+    // JPA 엔티티를 여기에 둔다. 컨벤션 플러그인이 noarg/allopen과 data-jpa를 함께 붙인다.
+    id("commerce.jpa-conventions")
 }
 
 dependencies {

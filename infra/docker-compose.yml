@@ -80,6 +80,11 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      # 데이터소스와 대시보드를 파일로 고정한다. UI에서 만든 것은 컨테이너를 지우면 사라지고,
+      # 다른 머신에서 clone 했을 때 재현되지 않는다.
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
 
