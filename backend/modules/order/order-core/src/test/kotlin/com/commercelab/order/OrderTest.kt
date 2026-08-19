@@ -77,6 +77,76 @@ class OrderTest {
     }
 
     @Test
+    fun `라인 중 하나만 수량이 0이어도 주문을 만들 수 없다`() {
+        // 정상 라인과 잘못된 라인이 섞여 있다. "전부 잘못된 경우"만 막으면 이 주문이 통과한다.
+        val result = Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = listOf(
+                주문라인("p-1", quantity = 2, unitAmount = 1_000),
+                주문라인("p-2", quantity = 0, unitAmount = 2_000),
+            ),
+            now = 지금,
+        )
+
+        assertTrue(result.isFailure, "라인 하나라도 수량이 0 이하면 주문 전체가 거부되어야 한다")
+    }
+
+    @Test
+    fun `수량 오류는 문제가 된 라인을 가리킨다`() {
+        // 에러가 어느 라인 때문인지 알려주지 않으면 호출자는 무엇을 고쳐야 할지 모른다.
+        val result = Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = listOf(
+                주문라인("p-1", quantity = 1, unitAmount = 1_000),
+                주문라인("p-2", quantity = -3, unitAmount = 2_000),
+            ),
+            now = 지금,
+        )
+
+        assertEquals(OrderError.InvalidQuantity("p-2", -3), result.errorOrNull())
+    }
+
+    @Test
+    fun `빈 주문의 실패 이유는 수량이나 선점과 구분된다`() {
+        // 빈 주문은 "라인이 없다"는 사건이다. 다른 실패 케이스를 빌려 쓰면
+        // API 사용자는 무엇을 고쳐야 할지 알 수 없다.
+        // OrderError에 이 경우를 위한 케이스가 필요하다 (예: EmptyOrder).
+        val result = Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = emptyList(),
+            now = 지금,
+        )
+
+        val error = result.errorOrNull()
+        assertTrue(
+            error !is OrderError.ReservationAlreadySettled,
+            "빈 주문과 '선점이 이미 처리됨'은 다른 사건이다",
+        )
+        assertTrue(
+            error !is OrderError.InvalidQuantity,
+            "라인이 없는 것과 라인의 수량이 잘못된 것은 다른 사건이다",
+        )
+    }
+
+    @Test
+    fun `상태 전이 실패는 실제 현재 상태를 알려준다`() {
+        // 에러에 담긴 from이 사실과 다르면, 로그를 보는 사람이 잘못된 원인을 쫓게 된다.
+        val paid = 주문생성().markPaid(지금).getOrNull()!!
+
+        val result = paid.markPaid(지금)
+
+        assertTrue(result.isFailure, "이미 결제된 주문을 다시 결제할 수 없다")
+        assertEquals(
+            OrderError.InvalidStatusTransition(OrderStatus.PAID, OrderStatus.PAID),
+            result.errorOrNull(),
+            "from은 호출 시점의 실제 상태여야 한다",
+        )
+    }
+
+    @Test
     fun `라인이 하나도 없는 주문은 만들 수 없다`() {
         val result = Order.place(
             orderId = "ord-1",
