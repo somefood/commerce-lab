@@ -56,9 +56,13 @@ M1은 테이블을 5개 만든다. **어떻게 만들 것인가를 먼저 정해
 
 포기하는 것: 초기 속도. 엔티티 하나 추가할 때마다 SQL 파일을 같이 써야 한다.
 
-> **이건 스택 추가다.** CLAUDE.md §6에 따라 ADR 없이 진행하지 않는다.
-> 사용자가 Flyway로 결정하면 Claude가 Gradle 설정과 디렉터리(`bootstrap/src/main/resources/db/migration/`)를
-> 붙인다. 마이그레이션 SQL 자체는 스키마 설계이므로 사용자가 쓴다.
+> **결정됨 (2026-08-19): Flyway 채택.** ADR-0002로 사용자가 기록한다.
+> Claude가 Gradle 의존성·`application.yml`·`bootstrap/src/main/resources/db/migration/` 디렉터리를 붙였다.
+> 마이그레이션 SQL 자체는 스키마 설계이므로 사용자가 쓴다 (규칙은 그 디렉터리의 README 참고).
+>
+> 배선 시 내린 부수 결정 하나: **Flyway 이력 테이블은 `public` 스키마에 둔다.**
+> 모듈 스키마(`"order"`/`payment`)에 넣으면 M4에서 DB를 쪼갤 때 그 이력이 한쪽 모듈에 딸려 간다.
+> 이력 테이블은 도메인이 아니라 도구의 메타데이터이므로 CLAUDE.md §5의 "public에 도메인 테이블 금지"에 걸리지 않는다.
 
 **면접에서 이렇게 말한다:** "ORM의 ddl-auto는 개발 편의 기능이지 스키마 관리 도구가 아닙니다.
 운영 DB에 어떤 DDL이 나갔는지 레포에서 추적할 수 없으면 롤백도 감사도 불가능해서,

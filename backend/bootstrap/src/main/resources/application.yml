@@ -7,6 +7,15 @@ spring:
     password: commerce
   jackson:
     default-property-inclusion: non_null
+  flyway:
+    enabled: true
+    # 이력 테이블(flyway_schema_history)은 기본 스키마(public)에 둔다.
+    # 마이그레이션 SQL은 "order"/ payment 스키마를 항상 명시적으로 적는다.
+    # 스키마 생성 자체는 인프라의 몫이다 (infra/postgres/init/01-schemas.sql).
+    locations: classpath:db/migration
+    # 운영에서 스키마가 손상됐을 때 자동으로 고치지 않는다. 사람이 본다.
+    validate-on-migrate: true
+    clean-disabled: true
 
 server:
   port: 8080
