@@ -17,9 +17,18 @@
 
 ## 문서
 
-- [설계문서](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md)
-- [진도](./docs/PROGRESS.md)
-- [ADR](./docs/adr/)
+| 문서 | 무엇이 있나 | 누가 쓰나 |
+|---|---|---|
+| [진도 PROGRESS.md](./docs/PROGRESS.md) | 현재 마일스톤과 다음 할 일. **여기서 시작한다** | 양쪽 |
+| [설계문서](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md) | 아키텍처, 도메인 모델, 불변 규칙, 마일스톤 전체 계획 | Claude |
+| [마일스톤 문서](./docs/milestones/) | 마일스톤별 작업지시서. 설계 근거 + 실패 테스트 + 할 일 체크리스트 | Claude |
+| [ADR](./docs/adr/) | 결정 기록. 왜 그렇게 정했고 무엇을 버렸나 | 사용자 |
+| [협업 규칙 CLAUDE.md](./CLAUDE.md) | 역할 분담, 리뷰 방식, 아키텍처 불변 규칙 | 양쪽 |
+| [인프라 사용법](./infra/README.md) | 컨테이너 기동, 접속 정보, 자주 쓰는 명령 | Claude |
+| [마이그레이션 규칙](./backend/bootstrap/src/main/resources/db/migration/README.md) | Flyway 파일명 규칙과 금지 사항 | Claude |
+| [M0 실행계획](./docs/superpowers/plans/2026-08-18-m0-scaffolding.md) | 스캐폴딩 작업 기록 (완료) | Claude |
+
+현재 진행 중: [M1 — 주문 코어와 동시성 제어](./docs/milestones/M1-order-core.md)
 
 ## 빠르게 실행하기
 

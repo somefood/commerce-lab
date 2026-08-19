@@ -1,5 +1,9 @@
 # 로컬 인프라
 
+> **관련 문서**
+> [진도](../docs/PROGRESS.md) · [설계문서](../docs/superpowers/specs/2026-08-18-commerce-lab-design.md) ·
+> [M1 마일스톤](../docs/milestones/M1-order-core.md) · [README](../README.md)
+
 ## 기동
 
     docker compose -f infra/docker-compose.yml up -d

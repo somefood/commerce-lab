@@ -1,5 +1,9 @@
 # commerce-lab 설계문서
 
+> **관련 문서**
+> [진도](../../PROGRESS.md) · [협업 규칙](../../../CLAUDE.md) · [마일스톤 문서](../../milestones/) ·
+> [ADR](../../adr/) · [M0 실행계획](../plans/2026-08-18-m0-scaffolding.md)
+
 - 작성일: 2026-08-18
 - 상태: 승인됨
 - 목적: 백엔드 실력을 실전 수준으로 끌어올리기 위한 학습 협업 프로젝트
@@ -248,7 +252,7 @@ Claude가 제공하는 실패 테스트는 도메인 단위 + 통합 테스트�
 
 ## 8. 마일스톤
 
-각 마일스톤은 `docs/milestones/`에 별도 설계문서를 갖는다.
+각 마일스톤은 [`docs/milestones/`](../../milestones/)에 별도 설계문서를 갖는다.
 
 ### M0 — 스캐폴딩 (Claude 전담)
 
@@ -258,6 +262,8 @@ CI, ArchUnit 규칙, 헬스체크, 프론트 뼈대.
 완료 기준: `docker compose up` 후 백엔드/프론트 기동, ArchUnit 통과, CI 초록.
 
 ### M1 — 주문 코어와 동시성 제어
+
+→ 작업지시서: [docs/milestones/M1-order-core.md](../../milestones/M1-order-core.md)
 
 주문 상태머신, 재고 차감. 의도적으로 3단계로 진화시킨다.
 

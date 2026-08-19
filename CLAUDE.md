@@ -5,7 +5,11 @@
 ## 0. 이 프로젝트의 성격
 
 **학습 협업 프로젝트다. 결과물보다 사용자의 실력 증가가 목적이다.**
-설계문서: `docs/superpowers/specs/2026-08-18-commerce-lab-design.md` — 작업 전 반드시 읽는다.
+설계문서: [docs/superpowers/specs/2026-08-18-commerce-lab-design.md](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md) — 작업 전 반드시 읽는다.
+
+> **문서 지도** — [진도](./docs/PROGRESS.md)에서 시작한다.
+> [설계문서](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md) · [마일스톤](./docs/milestones/) ·
+> [ADR](./docs/adr/) · [인프라](./infra/README.md) · [README](./README.md)
 
 ## 1. 역할 분담 (절대 규칙)
 
@@ -63,6 +67,12 @@
 
 마일스톤마다 Claude는 **정답 없는 트레이드오프 질문 1건**을 던지고, 사용자 답을 먼저 들은 뒤
 자기 판단을 말한다. 합의 결과는 사용자가 ADR로 남긴다.
+
+### 문서끼리는 링크로 잇는다
+
+새 문서를 만들면 제목 바로 아래에 "관련 문서" 블록을 넣고, 기존 문서에서도 그 문서로 가는
+링크를 건다. 경로를 문장 안에 코드로 적기만 하면 클릭할 수 없어서 아무도 따라가지 않는다.
+[README](./README.md)의 문서 표와 [PROGRESS](./docs/PROGRESS.md)가 지도 역할을 한다.
 
 ### 마일스톤 문서의 마지막 절은 항상 "내가 할 일"이다
 
@@ -143,8 +153,8 @@ docker run --rm -i --network host grafana/k6 run - < infra/k6/smoke.js
 
 ## 8. 세션 시작 시
 
-1. `docs/PROGRESS.md`로 현재 마일스톤 확인
-2. 해당 `docs/milestones/MN-*.md` 확인
+1. [`docs/PROGRESS.md`](./docs/PROGRESS.md)로 현재 마일스톤 확인
+2. 해당 [`docs/milestones/MN-*.md`](./docs/milestones/) 확인
 3. 미완료 작업이 사용자 몫인지 Claude 몫인지 판단 후 진행
 
 사용자 몫이 남아 있으면 **대신 구현하지 않는다.** 상태만 알리고 기다린다.

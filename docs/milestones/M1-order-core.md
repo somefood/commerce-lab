@@ -3,7 +3,18 @@
 - 작성: Claude / 구현: 사용자
 - 선행: M0 스캐폴딩 완료
 - 상태: 구현 대기
-- 관련 스펙: `docs/superpowers/specs/2026-08-18-commerce-lab-design.md` §4.2 ~ §4.4
+- 관련 스펙: [설계문서](../superpowers/specs/2026-08-18-commerce-lab-design.md) §4.2 ~ §4.4
+
+> **관련 문서**
+> [진도](../PROGRESS.md) · [협업 규칙](../../CLAUDE.md) · [ADR](../adr/) ·
+> [인프라 사용법](../../infra/README.md) · [마이그레이션 규칙](../../backend/bootstrap/src/main/resources/db/migration/README.md)
+>
+> **이 마일스톤이 만지는 파일**
+> [k6 시나리오](../../infra/k6/order-concurrent.js) ·
+> [Grafana 대시보드](../../infra/grafana/dashboards/m1-order-concurrency.json) ·
+> [ArchUnit 규칙](../../backend/bootstrap/src/test/kotlin/com/commercelab/architecture/ArchitectureTest.kt)
+>
+> **바로 할 일 → [§13 내가 할 일](#13-내가-할-일-체크리스트)**
 
 ---
 

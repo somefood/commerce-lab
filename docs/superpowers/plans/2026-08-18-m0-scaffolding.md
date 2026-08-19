@@ -1,5 +1,11 @@
 # M0 스캐폴딩 구현 계획
 
+> **관련 문서**
+> [설계문서](../specs/2026-08-18-commerce-lab-design.md) · [진도](../../PROGRESS.md) ·
+> [M1 마일스톤](../../milestones/M1-order-core.md)
+>
+> 상태: M0 완료 (2026-08-19). 이후 작업은 마일스톤 문서로 이어진다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 사용자가 M1부터 도메인 구현에만 집중할 수 있도록, 경계가 강제되고 실행 가능한 개발 환경을 완성한다.
