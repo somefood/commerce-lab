@@ -606,3 +606,76 @@ UPDATE "order".reservations
 - ADR-0003: 재고 동시성 제어 방식 — 낙관적 락 vs 비관적 락 (2단계 수치 근거)
 - ADR-0004: 선점 만료 구동 방식 — 배치 단독, TTL 3분 / 주기 5초 (§11 합의 결과)
 - ADR-0005: 도메인 에러 표현 — `kotlin.Result` vs 자체 `Either` (§4.1에서 부딪힌 결과)
+
+---
+
+## 13. 내가 할 일 (체크리스트)
+
+각 항목은 "무엇을 하면 끝인지"를 명령과 출력으로 판정한다.
+막히면 §9 힌트를 열기 전에 최소 30분은 붙어본다.
+
+### 지금: 1단계 — 락 없이 만들고 깨뜨리기
+
+- [ ] **1. `V1__create_order_tables.sql` 완성**
+  - 위치: `backend/bootstrap/src/main/resources/db/migration/`
+  - 테이블 5개 + `products`: §3의 컬럼 목록대로
+  - `inventories`에 CHECK 제약 (§3 하단 SQL)
+  - 주의: 스키마 명시(`"order".orders`), `order`는 예약어라 큰따옴표 필수
+  - **완료 판정:**
+    ```bash
+    docker compose -f infra/docker-compose.yml up -d
+    cd backend && ./gradlew :bootstrap:bootRun
+    # 다른 터미널에서
+    docker exec -it commerce-postgres psql -U commerce -d commerce -c '\dt "order".*'
+    ```
+    → 테이블 6개가 나오면 끝
+
+- [ ] **2. `order-api` 시그니처 확정**
+  - 위치: `backend/modules/order/order-api/src/main/kotlin/com/commercelab/order/api/`
+  - §4.1이 제안이다. 그대로 써도 되고 바꿔도 된다. **결정은 내가 한다**
+  - 여기서 정할 것 두 가지:
+    - 실패를 `kotlin.Result`로 표현할까, 자체 `Either<OrderError, T>`로 할까 (§4.1 주석 참고)
+    - `orderId`는 서버가 만드나, 클라이언트가 주나
+  - **완료 판정:** `./gradlew :modules:order:order-api:build` 성공
+  - 끝나면 나에게 알려줄 것 → §5 테스트 파일을 본문까지 채워 커밋한다
+
+- [ ] **3. 도메인 모델 + 단위 테스트 통과**
+  - 위치: `backend/modules/order/order-core/src/main/kotlin/`
+  - **완료 판정:** `./gradlew :modules:order:order-core:test` — §5.1의 4건 통과
+
+- [ ] **4. 락 없이 구현 + REST 어댑터**
+  - 재고를 조회하고, 검사하고, UPDATE한다. **락을 걸지 않는다** (일부러)
+  - bootstrap에 §4.3의 엔드포인트 5개. `/api/dev/reset`은 `dev` 프로필에만
+  - 주의: `@Transactional`은 order-core에만. bootstrap에 붙이면 ArchUnit이 빌드를 깬다
+  - **완료 판정:** `curl -X POST localhost:8080/api/orders -H 'Content-Type: application/json' -d '{"accountId":"a1","lines":[{"productId":"p-sneaker","quantity":1}]}'` 가 주문을 만든다
+
+- [ ] **5. 오버셀 관측하고 기록**
+  ```bash
+  ./gradlew :bootstrap:test --tests '*ConcurrentOrderIntegrationTest*'   # 실패해야 정상
+  docker run --rm -i --network host grafana/k6 run - < infra/k6/order-concurrent.js
+  ```
+  - k6 출력 마지막 줄 `[오버셀] N건`을 §8 표 1행에 적는다
+  - Grafana(http://localhost:3001 → M1 대시보드)에서 p99와 커넥션 대기도 같이 본다
+  - **완료 판정:** §8 표의 "1 — 락 없음" 행이 채워짐
+
+- [ ] **6. 여기서 멈추고 리뷰 요청**
+  - 2단계로 바로 넘어가지 않는다. 관측 결과를 놓고 이야기한 뒤 넘어간다
+
+### 그 다음 (지금 안 해도 됨)
+
+- [ ] 2단계 — `@Version` 낙관적 락 + 재시도 → §8 표 2행. 비관적 락 비교는 선택
+- [ ] 3단계 — 선점 HELD + TTL 3분 + 만료 배치 5초 → §8 표 4행
+- [ ] 프론트 붙이기는 내 몫이다. 2단계 통과하면 알려줄 것
+
+### 병행해서 언제든
+
+- [ ] **ADR-0002 작성** — 마이그레이션 도구. 합의 끝났고 기록만 남았다 (§2)
+- [ ] **ADR-0004 작성** — 선점 만료 구동 방식. 합의 끝남 (§11)
+  - `docs/adr/0001-modular-monolith.md`가 형식 예시다
+  - 내 설명을 그대로 옮기지 말고 내 언어로 다시 쓸 것. 그게 면접 답변의 원본이 된다
+
+### 막혔을 때
+
+- 30분 넘게 안 풀리면 §9 힌트를 연다
+- 그래도 안 되면 "여기서 막혔다"고 말해줄 것. 답을 주기 전에 질문부터 하겠지만,
+  두 번 물어도 안 풀리면 설명한다
