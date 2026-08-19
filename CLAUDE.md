@@ -96,12 +96,39 @@ Next.js(App Router) + TypeScript + TanStack Query + Tailwind
 ## 7. 명령어
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d   # 인프라 기동
-cd backend && ./gradlew test                        # 전체 테스트
-cd backend && ./gradlew archTest                    # 아키텍처 규칙 검사
-cd frontend && pnpm dev                             # 프론트 개발 서버
-k6 run infra/k6/<scenario>.js                       # 부하 테스트
+# 인프라 기동 (Docker 데몬이 꺼져 있으면 open -a OrbStack 먼저)
+docker compose -f infra/docker-compose.yml up -d
+
+# 백엔드 전체 테스트
+cd backend && ./gradlew build
+
+# 아키텍처 규칙만 검사
+cd backend && ./gradlew :bootstrap:archTest
+
+# 백엔드 기동
+cd backend && ./gradlew :bootstrap:bootRun
+
+# 프론트 개발 서버 (npm 사용 — pnpm 미설치)
+cd frontend && npm run dev
+
+# API 타입 재생성 (백엔드가 켜져 있어야 함)
+cd frontend && npm run gen:api
+
+# 부하 테스트 (k6 설치 불필요, Docker 이미지 사용)
+docker run --rm -i --network host grafana/k6 run - < infra/k6/smoke.js
 ```
+
+## 7-1. 포트
+
+| 서비스 | 포트 |
+|---|---|
+| 백엔드 | 8080 |
+| 프론트 | 3000 |
+| PostgreSQL | 5432 |
+| Redis | 6379 |
+| Redpanda | 9092 |
+| Prometheus | 9090 |
+| Grafana | 3001 |
 
 ## 8. 세션 시작 시
 
