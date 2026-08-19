@@ -54,7 +54,14 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # 생성된 타입(src/types/api.d.ts)은 커밋돼 있으므로 백엔드 기동 없이 빌드된다.
+      # Next의 라우트 타입(LayoutProps 등)은 .next/types에 생성된다.
+      # 이게 없으면 tsc가 "Cannot find name 'LayoutProps'"로 실패한다.
+      - name: 라우트 타입 생성
+        working-directory: frontend
+        run: npx next typegen
+
+      # 백엔드 OpenAPI에서 생성한 타입(src/types/api.d.ts)은 커밋돼 있으므로
+      # 백엔드를 띄우지 않고도 계약 위반을 여기서 잡는다.
       - name: 타입 검사
         working-directory: frontend
         run: npx tsc --noEmit
