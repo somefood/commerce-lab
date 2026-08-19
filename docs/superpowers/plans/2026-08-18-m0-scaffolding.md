@@ -111,7 +111,7 @@ docs/PROGRESS.md                                마일스톤 진도 추적
   - 컨벤션 플러그인 ID: `commerce.kotlin-conventions`, `commerce.spring-conventions`
   - `com.commercelab.common.Money` — `@JvmInline value class Money(val amount: Long)`, 연산 `plus(other: Money): Money`, `times(qty: Int): Money`, 팩토리 `Money.of(amount: Long): Money` (음수면 `IllegalArgumentException`)
 
-- [ ] **Step 1: Gradle 래퍼 복사**
+- [x] **Step 1: Gradle 래퍼 복사**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -125,7 +125,7 @@ chmod +x backend/gradlew
 
 확인: `cat backend/gradle/wrapper/gradle-wrapper.properties`에 `gradle-8.14.3-bin.zip`이 보여야 한다.
 
-- [ ] **Step 2: 버전 카탈로그 작성**
+- [x] **Step 2: 버전 카탈로그 작성**
 
 `backend/gradle/libs.versions.toml`:
 
@@ -147,7 +147,7 @@ archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref
 springdoc-openapi-webmvc = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 ```
 
-- [ ] **Step 3: build-logic 합성 빌드 작성**
+- [x] **Step 3: build-logic 합성 빌드 작성**
 
 `backend/build-logic/settings.gradle.kts`:
 
@@ -185,7 +185,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 4: 컨벤션 플러그인 작성**
+- [x] **Step 4: 컨벤션 플러그인 작성**
 
 `backend/build-logic/src/main/kotlin/commerce.kotlin-conventions.gradle.kts`:
 
@@ -247,7 +247,7 @@ plugins {
 // 버전 없이 적용할 수 있고, 실행 가능한 앱 모듈이 무엇인지도 이름으로 드러난다.
 ```
 
-- [ ] **Step 5: settings와 루트 빌드 파일 작성**
+- [x] **Step 5: settings와 루트 빌드 파일 작성**
 
 `backend/settings.gradle.kts`:
 
@@ -288,7 +288,7 @@ include(
 // 선택하게 해야 "이 모듈이 무엇인지"가 build.gradle.kts만 보고 드러난다.
 ```
 
-- [ ] **Step 6: 모듈 빌드 파일 7개 작성**
+- [x] **Step 6: 모듈 빌드 파일 7개 작성**
 
 `backend/modules/common/build.gradle.kts`:
 
@@ -390,7 +390,7 @@ dependencies {
 
 주의: `bootstrap`은 `order-core`와 `payment-core`를 **둘 다** 의존하는 유일한 모듈이다. 조립은 여기서만 일어난다.
 
-- [ ] **Step 7: 실패하는 테스트 작성**
+- [x] **Step 7: 실패하는 테스트 작성**
 
 `backend/modules/common/src/test/kotlin/com/commercelab/common/MoneyTest.kt`:
 
@@ -424,7 +424,7 @@ class MoneyTest {
 }
 ```
 
-- [ ] **Step 8: 테스트 실패 확인**
+- [x] **Step 8: 테스트 실패 확인**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -435,7 +435,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 (첫 실행은 Gradle 8.14.3 배포판을 내려받으므로 수 분 걸릴 수 있다.)
 
-- [ ] **Step 9: 최소 구현 작성**
+- [x] **Step 9: 최소 구현 작성**
 
 `backend/modules/common/src/main/kotlin/com/commercelab/common/Money.kt`:
 
@@ -466,7 +466,7 @@ value class Money private constructor(val amount: Long) {
 }
 ```
 
-- [ ] **Step 10: 테스트 통과 확인**
+- [x] **Step 10: 테스트 통과 확인**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -475,7 +475,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 기대: `BUILD SUCCESSFUL`, 3개 테스트 통과
 
-- [ ] **Step 11: 전체 모듈 컴파일 확인**
+- [x] **Step 11: 전체 모듈 컴파일 확인**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -490,7 +490,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 클래스가 없어 `Main class name has not been configured`로 반드시 실패한다.
 메인 클래스는 Task 4에서 생긴다. 전체 `build` 검증은 Task 4 Step 8이 담당한다.
 
-- [ ] **Step 12: 커밋**
+- [x] **Step 12: 커밋**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -523,7 +523,7 @@ build-logic 컨벤션 플러그인과 버전 카탈로그로 빌드 설정을 �
   - Gradle 태스크 `archTest` — ArchUnit 테스트만 실행
   - M1 이후 모든 코드가 지켜야 할 3개 규칙
 
-- [ ] **Step 1: 규칙 검증에 쓸 최소 클래스 작성**
+- [x] **Step 1: 규칙 검증에 쓸 최소 클래스 작성**
 
 먼저 규칙이 검사할 대상이 있어야 한다.
 
@@ -576,7 +576,7 @@ class OrderPlacer {
 }
 ```
 
-- [ ] **Step 2: 실패하는 아키텍처 테스트 작성**
+- [x] **Step 2: 실패하는 아키텍처 테스트 작성**
 
 `backend/bootstrap/src/test/kotlin/com/commercelab/architecture/ArchitectureTest.kt`:
 
@@ -661,7 +661,7 @@ class ArchitectureTest {
 }
 ```
 
-- [ ] **Step 3: archTest 태스크 추가**
+- [x] **Step 3: archTest 태스크 추가**
 
 `backend/bootstrap/build.gradle.kts` 맨 아래에 추가:
 
@@ -678,7 +678,7 @@ tasks.register<Test>("archTest") {
 }
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -687,7 +687,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 기대: `BUILD SUCCESSFUL`, 5개 테스트 통과
 
-- [ ] **Step 5: 규칙이 실제로 작동하는지 역검증**
+- [x] **Step 5: 규칙이 실제로 작동하는지 역검증**
 
 규칙이 통과하는 것만으로는 규칙이 살아 있다는 증거가 안 된다. 일부러 어겨본다.
 
@@ -719,7 +719,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 기대: **FAIL**. `contract는 어떤 프레임워크도 알지 못한다` 테스트가 깨지고, 메시지에 `TemporaryViolation`이 나온다.
 
-- [ ] **Step 6: 위반 코드 원복**
+- [x] **Step 6: 위반 코드 원복**
 
 Step 5에서 추가한 import, `TemporaryViolation` 클래스, `contract/build.gradle.kts`의 dependencies 블록을 모두 제거한다.
 
@@ -730,7 +730,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 기대: `BUILD SUCCESSFUL`
 
-- [ ] **Step 7: 커밋**
+- [x] **Step 7: 커밋**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -761,7 +761,7 @@ git commit -m "test: ArchUnit 아키텍처 불변 규칙 5종 추가
   - Prometheus `localhost:9090`, Grafana `localhost:3001` (admin/admin)
   - Task 4의 통합 테스트는 이 compose가 아니라 Testcontainers를 쓴다. 둘은 독립이다.
 
-- [ ] **Step 1: Docker 데몬 기동 확인**
+- [x] **Step 1: Docker 데몬 기동 확인**
 
 ```bash
 docker info --format '{{.ServerVersion}}'
@@ -775,7 +775,7 @@ open -a OrbStack
 
 30초 정도 기다린 뒤 `docker info` 재실행. 그래도 실패하면 사용자에게 알리고 멈춘다.
 
-- [ ] **Step 2: 스키마 초기화 스크립트 작성**
+- [x] **Step 2: 스키마 초기화 스크립트 작성**
 
 `infra/postgres/init/01-schemas.sql`:
 
@@ -795,7 +795,7 @@ GRANT ALL ON SCHEMA payment TO commerce;
 
 주의: `order`는 SQL 예약어라 반드시 큰따옴표로 감싼다.
 
-- [ ] **Step 3: Prometheus 설정 작성**
+- [x] **Step 3: Prometheus 설정 작성**
 
 `infra/prometheus/prometheus.yml`:
 
@@ -811,7 +811,7 @@ scrape_configs:
       - targets: ["host.docker.internal:8080"]
 ```
 
-- [ ] **Step 4: compose 파일 작성**
+- [x] **Step 4: compose 파일 작성**
 
 `infra/docker-compose.yml`:
 
@@ -896,7 +896,7 @@ volumes:
   postgres-data:
 ```
 
-- [ ] **Step 5: 인프라 기동 및 검증**
+- [x] **Step 5: 인프라 기동 및 검증**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -907,7 +907,7 @@ docker compose -f infra/docker-compose.yml ps
 
 기대: postgres, redis, redpanda가 `healthy`. prometheus, grafana가 `running`.
 
-- [ ] **Step 6: 스키마 생성 검증**
+- [x] **Step 6: 스키마 생성 검증**
 
 ```bash
 docker exec commerce-postgres psql -U commerce -d commerce -c "\dn"
@@ -915,7 +915,7 @@ docker exec commerce-postgres psql -U commerce -d commerce -c "\dn"
 
 기대 출력에 `order`와 `payment` 스키마가 포함되어야 한다.
 
-- [ ] **Step 7: Redpanda 토픽 생성 확인**
+- [x] **Step 7: Redpanda 토픽 생성 확인**
 
 ```bash
 docker exec commerce-redpanda rpk topic create smoke-test
@@ -925,7 +925,7 @@ docker exec commerce-redpanda rpk topic delete smoke-test
 
 기대: 생성 → 목록에 표시 → 삭제 성공
 
-- [ ] **Step 8: k6 스모크 시나리오 작성**
+- [x] **Step 8: k6 스모크 시나리오 작성**
 
 `infra/k6/smoke.js`:
 
@@ -956,7 +956,7 @@ export default function () {
 }
 ```
 
-- [ ] **Step 9: 인프라 문서 작성**
+- [x] **Step 9: 인프라 문서 작성**
 
 `infra/README.md`:
 
@@ -996,7 +996,7 @@ export default function () {
 Grafana는 3001 포트를 쓴다. 프론트엔드가 3000을 점유하기 때문이다.
 ```
 
-- [ ] **Step 10: 커밋**
+- [x] **Step 10: 커밋**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -1026,7 +1026,7 @@ k6는 설치 없이 Docker 이미지로 실행한다."
   - `GET /actuator/prometheus` → Prometheus 메트릭
   - 앱 진입점 `com.commercelab.bootstrap.CommerceLabApplication`
 
-- [ ] **Step 1: bootstrap 의존성 추가**
+- [x] **Step 1: bootstrap 의존성 추가**
 
 `backend/bootstrap/build.gradle.kts`의 `dependencies` 블록에 추가:
 
@@ -1040,7 +1040,7 @@ k6는 설치 없이 Docker 이미지로 실행한다."
     testImplementation("org.testcontainers:postgresql")
 ```
 
-- [ ] **Step 2: 실패하는 통합 테스트 작성**
+- [x] **Step 2: 실패하는 통합 테스트 작성**
 
 `backend/bootstrap/src/test/kotlin/com/commercelab/bootstrap/HealthIntegrationTest.kt`:
 
@@ -1143,7 +1143,7 @@ CREATE SCHEMA IF NOT EXISTS payment;
 
 주의: `infra/postgres/init/01-schemas.sql`과 내용이 겹친다. 지금은 중복을 허용한다 — Testcontainers는 compose와 독립적으로 떠야 하고, M1에서 Flyway를 도입하면 두 곳 모두 마이그레이션 파일 하나로 통합된다.
 
-- [ ] **Step 3: 테스트 실패 확인**
+- [x] **Step 3: 테스트 실패 확인**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -1152,7 +1152,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 기대: 컴파일 실패 또는 컨텍스트 로딩 실패. `CommerceLabApplication`이 없다.
 
-- [ ] **Step 4: 앱 진입점 작성**
+- [x] **Step 4: 앱 진입점 작성**
 
 `backend/bootstrap/src/main/kotlin/com/commercelab/bootstrap/CommerceLabApplication.kt`:
 
@@ -1176,7 +1176,7 @@ fun main(args: Array<String>) {
 }
 ```
 
-- [ ] **Step 5: 헬스 컨트롤러 작성**
+- [x] **Step 5: 헬스 컨트롤러 작성**
 
 `backend/bootstrap/src/main/kotlin/com/commercelab/bootstrap/web/HealthController.kt`:
 
@@ -1208,7 +1208,7 @@ data class HealthResponse(
 )
 ```
 
-- [ ] **Step 6: 애플리케이션 설정 작성**
+- [x] **Step 6: 애플리케이션 설정 작성**
 
 `backend/bootstrap/src/main/resources/application.yml`:
 
@@ -1249,7 +1249,7 @@ logging:
     com.commercelab: DEBUG
 ```
 
-- [ ] **Step 7: 테스트 통과 확인**
+- [x] **Step 7: 테스트 통과 확인**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -1258,7 +1258,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 기대: `BUILD SUCCESSFUL`, 3개 테스트 통과. (Testcontainers가 postgres:16-alpine 이미지를 처음 받으면 시간이 걸린다.)
 
-- [ ] **Step 8: 전체 검증**
+- [x] **Step 8: 전체 검증**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -1267,7 +1267,7 @@ cd /Users/seokjuhong/workspace/commerce-lab/backend
 
 기대: `BUILD SUCCESSFUL`. ArchUnit 5개 + Money 3개 + 통합 3개, 총 11개 테스트 통과.
 
-- [ ] **Step 9: 실제 기동 확인**
+- [x] **Step 9: 실제 기동 확인**
 
 인프라가 떠 있는 상태에서:
 
@@ -1283,7 +1283,7 @@ curl -s http://localhost:8080/actuator/prometheus | head -5
 
 확인 후 백그라운드 프로세스를 종료한다: `kill %1`
 
-- [ ] **Step 10: 커밋**
+- [x] **Step 10: 커밋**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -1314,7 +1314,7 @@ H2를 쓰지 않는 이유는 M1의 락 테스트가 거짓 안심이 되지 않
   - `fetchHealth(): Promise<HealthResponse>` — `src/lib/api.ts` export
   - `http://localhost:3000` 에서 백엔드 상태를 표시하는 화면
 
-- [ ] **Step 1: Next.js 프로젝트 생성**
+- [x] **Step 1: Next.js 프로젝트 생성**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -1325,7 +1325,7 @@ npx --yes create-next-app@latest frontend \
 
 기대: `frontend/` 생성, `frontend/src/app/page.tsx` 존재
 
-- [ ] **Step 2: 의존성 추가**
+- [x] **Step 2: 의존성 추가**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/frontend
@@ -1333,7 +1333,7 @@ npm install @tanstack/react-query
 npm install --save-dev openapi-typescript
 ```
 
-- [ ] **Step 3: 타입 생성 스크립트 추가**
+- [x] **Step 3: 타입 생성 스크립트 추가**
 
 `frontend/package.json`의 `scripts`에 추가:
 
@@ -1341,7 +1341,7 @@ npm install --save-dev openapi-typescript
     "gen:api": "openapi-typescript http://localhost:8080/v3/api-docs -o src/types/api.d.ts"
 ```
 
-- [ ] **Step 4: 백엔드 기동 후 타입 생성**
+- [x] **Step 4: 백엔드 기동 후 타입 생성**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -1357,7 +1357,7 @@ head -20 src/types/api.d.ts
 
 백엔드는 Step 8까지 켜둔다.
 
-- [ ] **Step 5: API 클라이언트 작성**
+- [x] **Step 5: API 클라이언트 작성**
 
 `frontend/src/lib/api.ts`:
 
@@ -1384,7 +1384,7 @@ export async function fetchHealth(): Promise<HealthResponse> {
 }
 ```
 
-- [ ] **Step 6: TanStack Query Provider 작성**
+- [x] **Step 6: TanStack Query Provider 작성**
 
 `frontend/src/app/providers.tsx`:
 
@@ -1431,7 +1431,7 @@ export default function RootLayout({
 }
 ```
 
-- [ ] **Step 7: 헬스 대시보드 화면 작성**
+- [x] **Step 7: 헬스 대시보드 화면 작성**
 
 `frontend/src/app/page.tsx` 전체 교체:
 
@@ -1505,7 +1505,7 @@ export default function Home() {
 }
 ```
 
-- [ ] **Step 8: 빌드와 화면 확인**
+- [x] **Step 8: 빌드와 화면 확인**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/frontend
@@ -1524,7 +1524,7 @@ curl -s http://localhost:3000 | grep -o "commerce-lab" | head -1
 
 확인 후 프론트와 백엔드 프로세스를 모두 종료한다.
 
-- [ ] **Step 9: 계약 위반 검출 역검증**
+- [x] **Step 9: 계약 위반 검출 역검증**
 
 타입 생성이 실제로 계약을 지키는지 확인한다.
 
@@ -1543,7 +1543,7 @@ npx tsc --noEmit
 
 확인 후 임시 줄을 제거하고 `npx tsc --noEmit`을 다시 실행해 통과를 확인한다.
 
-- [ ] **Step 10: 커밋**
+- [x] **Step 10: 커밋**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -1572,7 +1572,7 @@ API 계약이 깨지면 프론트 빌드가 실패하도록 만들어 계약 위
   - GitHub Actions 워크플로 — push/PR 시 백엔드 테스트 + 프론트 빌드
   - `docs/PROGRESS.md` — 마일스톤 체크리스트. 세션 시작 시 Claude가 읽는 상태 파일
 
-- [ ] **Step 1: CI 워크플로 작성**
+- [x] **Step 1: CI 워크플로 작성**
 
 `.github/workflows/ci.yml`:
 
@@ -1645,7 +1645,7 @@ jobs:
 
 주의: `archTest`는 `bootstrap` 프로젝트에만 등록돼 있으므로 반드시 `:bootstrap:archTest`로 부른다. 루트에는 같은 이름의 태스크가 없다.
 
-- [ ] **Step 2: CI 문법 검증**
+- [x] **Step 2: CI 문법 검증**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -1654,7 +1654,7 @@ python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); p
 
 기대: `YAML OK`
 
-- [ ] **Step 3: PROGRESS.md 작성**
+- [x] **Step 3: PROGRESS.md 작성**
 
 `docs/PROGRESS.md`:
 
@@ -1704,7 +1704,7 @@ python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); p
 | | | |
 ```
 
-- [ ] **Step 4: ADR 템플릿 작성**
+- [x] **Step 4: ADR 템플릿 작성**
 
 `docs/adr/0001-modular-monolith.md`:
 
@@ -1737,7 +1737,7 @@ python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); p
 자기 언어로 옮겨 적는 것이 이해했다는 증거이며, 면접 답변의 원본이 된다.
 ```
 
-- [ ] **Step 5: CLAUDE.md 명령어 수정**
+- [x] **Step 5: CLAUDE.md 명령어 수정**
 
 `CLAUDE.md`의 `## 7. 명령어` 섹션 전체를 아래로 교체한다 (pnpm → npm, k6 → Docker):
 
@@ -1778,7 +1778,7 @@ python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); p
 | Grafana | 3001 |
 ```
 
-- [ ] **Step 6: 설계문서의 도구 표기 수정**
+- [x] **Step 6: 설계문서의 도구 표기 수정**
 
 `docs/superpowers/specs/2026-08-18-commerce-lab-design.md`에서:
 
@@ -1796,7 +1796,7 @@ python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/ci.yml')); p
 - jOOQ는 M0 범위에서 제외했다. 조회 최적화가 실제로 필요해지는 M1 3단계에서 도입한다.
 ```
 
-- [ ] **Step 7: README 작성**
+- [x] **Step 7: README 작성**
 
 `README.md`:
 
@@ -1848,7 +1848,7 @@ http://localhost:3000 에서 백엔드 상태를 확인할 수 있다.
 | M4 | 서비스 분리 | Saga, 보상 트랜잭션, 분리 비용 측정 |
 ```
 
-- [ ] **Step 8: 전체 검증**
+- [x] **Step 8: 전체 검증**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab/backend
@@ -1860,7 +1860,7 @@ npx tsc --noEmit && npm run build
 
 기대: 양쪽 모두 성공.
 
-- [ ] **Step 9: PROGRESS.md의 M0 항목 체크**
+- [x] **Step 9: PROGRESS.md의 M0 항목 체크**
 
 `docs/PROGRESS.md`의 M0 체크박스 6개를 모두 `- [x]`로 바꾸고, 현재 마일스톤을 아래로 수정한다:
 
@@ -1870,7 +1870,7 @@ npx tsc --noEmit && npm run build
 **M1 — 주문 코어와 동시성 제어** — 설계문서 작성 대기 (Claude)
 ```
 
-- [ ] **Step 10: 커밋과 푸시**
+- [x] **Step 10: 커밋과 푸시**
 
 ```bash
 cd /Users/seokjuhong/workspace/commerce-lab
@@ -1882,7 +1882,7 @@ CLAUDE.md의 명령어를 실제 환경(npm, Docker k6)에 맞게 수정했다."
 git push origin main
 ```
 
-- [ ] **Step 11: CI 통과 확인**
+- [x] **Step 11: CI 통과 확인**
 
 ```bash
 sleep 60
@@ -1900,12 +1900,12 @@ gh run watch --exit-status
 
 M0가 끝났다고 말할 수 있으려면 아래가 전부 참이어야 한다.
 
-- [ ] `docker compose -f infra/docker-compose.yml up -d` 후 5개 서비스가 정상 기동
-- [ ] `cd backend && ./gradlew build` 성공 — 테스트 11개 통과
-- [ ] `cd backend && ./gradlew :bootstrap:archTest` 성공 — 불변 규칙 5개 강제됨
-- [ ] ArchUnit 규칙이 실제 위반을 잡는 것을 역검증으로 확인함
-- [ ] `http://localhost:3000` 에서 백엔드 상태가 `UP`으로 표시됨
-- [ ] 프론트 타입이 백엔드 OpenAPI에서 생성되며, 계약 위반 시 `tsc`가 실패함
+- [x] `docker compose -f infra/docker-compose.yml up -d` 후 5개 서비스가 정상 기동
+- [x] `cd backend && ./gradlew build` 성공 — 테스트 11개 통과
+- [x] `cd backend && ./gradlew :bootstrap:archTest` 성공 — 불변 규칙 5개 강제됨
+- [x] ArchUnit 규칙이 실제 위반을 잡는 것을 역검증으로 확인함
+- [ ] `http://localhost:3000` 에서 백엔드 상태가 `UP`으로 표시됨 (API 경로·CORS는 검증됨, 브라우저 육안 확인 남음)
+- [x] 프론트 타입이 백엔드 OpenAPI에서 생성되며, 계약 위반 시 `tsc`가 실패함
 - [ ] GitHub Actions CI 초록
 - [ ] 새 머신에서 clone 후 위 명령들이 그대로 동작 (Gradle 래퍼 커밋됨)
 
