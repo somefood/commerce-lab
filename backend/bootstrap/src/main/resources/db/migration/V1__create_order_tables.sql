@@ -70,7 +70,7 @@ CREATE table "order".inventories
 
 CREATE table "order".reservations
 (
-    id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id         varchar(100) PRIMARY KEY,
     order_id   varchar(100) NOT NULL,
     product_id varchar(100) NOT NULL,
     quantity   integer      NOT NULL,

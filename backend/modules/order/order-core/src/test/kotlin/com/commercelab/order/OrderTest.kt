@@ -1,0 +1,157 @@
+package com.commercelab.order
+
+import com.commercelab.common.DomainResult
+import com.commercelab.common.Money
+import com.commercelab.common.errorOrNull
+import com.commercelab.common.getOrNull
+import com.commercelab.common.isFailure
+import com.commercelab.order.api.OrderError
+import com.commercelab.order.api.OrderStatus
+import java.time.Instant
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * 주문 애그리거트의 실행 가능한 스펙이다. 스프링 없이 순수 단위 테스트로 돈다.
+ *
+ * 이 테스트가 가정하는 도메인 API는 다음과 같다. 시그니처가 마음에 들지 않으면
+ * 바꾸고 이 테스트도 함께 고치면 된다 — 스펙은 "무엇을 보장하는가"이지
+ * "어떤 이름을 쓰는가"가 아니다.
+ *
+ *   class Order {
+ *       companion object {
+ *           fun place(orderId: String, accountId: String, lines: List<OrderLine>, now: Instant)
+ *               : DomainResult<OrderError, Order>
+ *       }
+ *       val orderId: String
+ *       val status: OrderStatus
+ *       val totalAmount: Money
+ *       fun markPaid(now: Instant): DomainResult<OrderError, Order>
+ *       fun cancel(now: Instant): DomainResult<OrderError, Order>
+ *   }
+ *
+ *   data class OrderLine(val productId: String, val quantity: Int, val unitAmount: Money)
+ *
+ * 상태 전이 실패를 표현할 에러가 아직 OrderError에 없다. 아래 테스트는
+ * OrderError.InvalidStatusTransition(from, to)를 요구한다. order-api에 추가할 것.
+ *
+ * Instant를 파라미터로 받는 이유: 시간을 애플리케이션이 소유한다는 결정
+ * (M1 문서 §3, updated_at 논의)을 도메인에도 일관되게 적용한다.
+ * Instant.now()를 도메인 안에서 부르면 3단계 만료 테스트에서 시간을 고정할 수 없다.
+ */
+class OrderTest {
+
+    private val 지금 = Instant.parse("2026-08-19T10:00:00Z")
+
+    private fun 주문라인(productId: String, quantity: Int, unitAmount: Long) =
+        OrderLine(productId = productId, quantity = quantity, unitAmount = Money.of(unitAmount))
+
+    @Test
+    fun `주문 총액은 라인 금액의 합이다`() {
+        val result = Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = listOf(
+                주문라인("p-1", quantity = 2, unitAmount = 1_000),
+                주문라인("p-2", quantity = 1, unitAmount = 2_500),
+            ),
+            now = 지금,
+        )
+
+        val order = result.getOrNull()
+        assertEquals(Money.of(4_500), order?.totalAmount)
+    }
+
+    @Test
+    fun `수량이 0 이하인 라인은 주문을 만들 수 없다`() {
+        val result = Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = listOf(주문라인("p-1", quantity = 0, unitAmount = 1_000)),
+            now = 지금,
+        )
+
+        assertTrue(result.isFailure, "수량 0은 거부되어야 한다")
+        assertEquals(OrderError.InvalidQuantity("p-1", 0), result.errorOrNull())
+    }
+
+    @Test
+    fun `라인이 하나도 없는 주문은 만들 수 없다`() {
+        val result = Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = emptyList(),
+            now = 지금,
+        )
+
+        assertTrue(result.isFailure, "빈 주문은 거부되어야 한다")
+    }
+
+    @Test
+    fun `생성된 주문은 CREATED 상태다`() {
+        val order = Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = listOf(주문라인("p-1", 1, 1_000)),
+            now = 지금,
+        ).getOrNull()
+
+        assertEquals(OrderStatus.CREATED, order?.status)
+    }
+
+    @Test
+    fun `CREATED 주문만 PAID로 갈 수 있다`() {
+        val created = 주문생성()
+
+        val paid = created.markPaid(지금).getOrNull()
+
+        assertEquals(OrderStatus.PAID, paid?.status)
+    }
+
+    @Test
+    fun `취소된 주문은 PAID로 갈 수 없다`() {
+        val cancelled = 주문생성().cancel(지금).getOrNull()!!
+
+        val result = cancelled.markPaid(지금)
+
+        assertTrue(result.isFailure, "CANCELLED에서 PAID로 가면 결제는 됐는데 재고는 남에게 넘어간 상태가 된다")
+        assertEquals(
+            OrderError.InvalidStatusTransition(OrderStatus.CANCELLED, OrderStatus.PAID),
+            result.errorOrNull(),
+        )
+    }
+
+    @Test
+    fun `이미 취소된 주문은 다시 취소할 수 없다`() {
+        // 멱등이 아니라 실패로 정한다. 두 번째 취소 요청은 호출자가 상태를 잘못 알고 있다는 신호이고,
+        // 조용히 성공시키면 그 오해가 드러나지 않는다.
+        val cancelled = 주문생성().cancel(지금).getOrNull()!!
+
+        val result = cancelled.cancel(지금)
+
+        assertTrue(result.isFailure)
+        assertEquals(
+            OrderError.InvalidStatusTransition(OrderStatus.CANCELLED, OrderStatus.CANCELLED),
+            result.errorOrNull(),
+        )
+    }
+
+    @Test
+    fun `결제된 주문도 취소할 수 있다`() {
+        // 설계문서 §4.2: PAID --payment.failed--> CANCELLED 경로가 있다
+        val paid = 주문생성().markPaid(지금).getOrNull()!!
+
+        val result = paid.cancel(지금)
+
+        assertEquals(OrderStatus.CANCELLED, result.getOrNull()?.status)
+    }
+
+    private fun 주문생성(): Order =
+        Order.place(
+            orderId = "ord-1",
+            accountId = "acc-1",
+            lines = listOf(주문라인("p-1", 1, 1_000)),
+            now = 지금,
+        ).getOrNull() ?: error("주문 생성이 실패하면 이 테스트는 의미가 없다")
+}
