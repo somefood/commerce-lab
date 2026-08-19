@@ -1,0 +1,11 @@
+# 데이터소스를 UI에서 손으로 추가하지 않는다.
+# 컨테이너를 지웠다 다시 띄워도 같은 상태가 되어야 한다.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

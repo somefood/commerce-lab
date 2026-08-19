@@ -5,7 +5,11 @@
 ## 0. 이 프로젝트의 성격
 
 **학습 협업 프로젝트다. 결과물보다 사용자의 실력 증가가 목적이다.**
-설계문서: `docs/superpowers/specs/2026-08-18-commerce-lab-design.md` — 작업 전 반드시 읽는다.
+설계문서: [docs/superpowers/specs/2026-08-18-commerce-lab-design.md](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md) — 작업 전 반드시 읽는다.
+
+> **문서 지도** — [진도](./docs/PROGRESS.md)에서 시작한다.
+> [설계문서](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md) · [마일스톤](./docs/milestones/) ·
+> [ADR](./docs/adr/) · [인프라](./infra/README.md) · [README](./README.md)
 
 ## 1. 역할 분담 (절대 규칙)
 
@@ -54,6 +58,7 @@
 ```
 1. Claude → docs/milestones/MN-*.md 작성
      배경/트레이드오프 · 인터페이스 시그니처 · 실패 테스트 · 힌트(접힘)
+     · 문서 마지막에 "내가 할 일" 체크리스트 (필수)
 2. 사용자 구현 → 전체 테스트 통과
 3. Claude 리뷰 (지적만)
 4. 사용자 수정 → 재리뷰
@@ -62,6 +67,22 @@
 
 마일스톤마다 Claude는 **정답 없는 트레이드오프 질문 1건**을 던지고, 사용자 답을 먼저 들은 뒤
 자기 판단을 말한다. 합의 결과는 사용자가 ADR로 남긴다.
+
+### 문서끼리는 링크로 잇는다
+
+새 문서를 만들면 제목 바로 아래에 "관련 문서" 블록을 넣고, 기존 문서에서도 그 문서로 가는
+링크를 건다. 경로를 문장 안에 코드로 적기만 하면 클릭할 수 없어서 아무도 따라가지 않는다.
+[README](./README.md)의 문서 표와 [PROGRESS](./docs/PROGRESS.md)가 지도 역할을 한다.
+
+### 마일스톤 문서의 마지막 절은 항상 "내가 할 일"이다
+
+설계 근거만 있는 문서는 읽고 나서 무엇을 해야 할지 모른다. 모든 마일스톤 문서는 다음을 갖춘다.
+
+- 지금 당장 할 것 / 나중에 할 것 / 병행할 것을 나눈다
+- 각 항목마다 **완료 판정**을 명령과 기대 출력으로 적는다 ("~하면 끝")
+- 파일 경로를 적는다. "어디에 만들지"를 찾게 만들지 않는다
+- 사용자 몫과 Claude 몫을 항목마다 표시한다
+- 멈춰서 리뷰를 받아야 하는 지점을 명시한다
 
 ## 4. 설계 설명 의무
 
@@ -96,17 +117,44 @@ Next.js(App Router) + TypeScript + TanStack Query + Tailwind
 ## 7. 명령어
 
 ```bash
-docker compose -f infra/docker-compose.yml up -d   # 인프라 기동
-cd backend && ./gradlew test                        # 전체 테스트
-cd backend && ./gradlew archTest                    # 아키텍처 규칙 검사
-cd frontend && pnpm dev                             # 프론트 개발 서버
-k6 run infra/k6/<scenario>.js                       # 부하 테스트
+# 인프라 기동 (Docker 데몬이 꺼져 있으면 open -a OrbStack 먼저)
+docker compose -f infra/docker-compose.yml up -d
+
+# 백엔드 전체 테스트
+cd backend && ./gradlew build
+
+# 아키텍처 규칙만 검사
+cd backend && ./gradlew :bootstrap:archTest
+
+# 백엔드 기동
+cd backend && ./gradlew :bootstrap:bootRun
+
+# 프론트 개발 서버 (npm 사용 — pnpm 미설치)
+cd frontend && npm run dev
+
+# API 타입 재생성 (백엔드가 켜져 있어야 함)
+cd frontend && npm run gen:api
+
+# 부하 테스트 (k6 설치 불필요, Docker 이미지 사용)
+docker run --rm -i --network host grafana/k6 run - < infra/k6/smoke.js
 ```
+
+## 7-1. 포트
+
+| 서비스 | 포트 |
+|---|---|
+| 백엔드 | 8080 |
+| 프론트 | 3000 |
+| PostgreSQL | 5432 |
+| Redis | 6379 |
+| Redpanda | 9092 |
+| Prometheus | 9090 |
+| Grafana | 3001 |
 
 ## 8. 세션 시작 시
 
-1. `docs/PROGRESS.md`로 현재 마일스톤 확인
-2. 해당 `docs/milestones/MN-*.md` 확인
+1. [`docs/PROGRESS.md`](./docs/PROGRESS.md)로 현재 마일스톤 확인
+2. 해당 [`docs/milestones/MN-*.md`](./docs/milestones/) 확인
 3. 미완료 작업이 사용자 몫인지 Claude 몫인지 판단 후 진행
 
 사용자 몫이 남아 있으면 **대신 구현하지 않는다.** 상태만 알리고 기다린다.

@@ -1,5 +1,9 @@
 # commerce-lab 설계문서
 
+> **관련 문서**
+> [진도](../../PROGRESS.md) · [협업 규칙](../../../CLAUDE.md) · [마일스톤 문서](../../milestones/) ·
+> [ADR](../../adr/) · [M0 실행계획](../plans/2026-08-18-m0-scaffolding.md)
+
 - 작성일: 2026-08-18
 - 상태: 승인됨
 - 목적: 백엔드 실력을 실전 수준으로 끌어올리기 위한 학습 협업 프로젝트
@@ -38,7 +42,7 @@ AI 사용을 줄이는 대신, 역할을 재배치한다.
 | 캐시/분산락 | Redis | 선점 신호, 분산락 실습 |
 | 메시징 | Redpanda (Kafka 호환) | Kafka API 그대로, 로컬 리소스 소모 적음 |
 | 테스트 | JUnit5 + Testcontainers + ArchUnit | 도메인은 순수 단위, 인프라는 실제 컨테이너 |
-| 부하 | k6 | 시나리오를 코드로 관리, CI 연동 가능 |
+| 부하 | k6 (Docker 이미지) | 로컬 설치 없이 실행. 시나리오를 코드로 관리 |
 | 관측 | Prometheus + Grafana | 락 경합, 커넥션 풀, 지연을 눈으로 확인 |
 | 프론트 | Next.js(App Router) + TypeScript + TanStack Query + Tailwind | OpenAPI 타입 생성으로 API 계약 위반을 빌드 에러로 검출 |
 
@@ -248,7 +252,7 @@ Claude가 제공하는 실패 테스트는 도메인 단위 + 통합 테스트�
 
 ## 8. 마일스톤
 
-각 마일스톤은 `docs/milestones/`에 별도 설계문서를 갖는다.
+각 마일스톤은 [`docs/milestones/`](../../milestones/)에 별도 설계문서를 갖는다.
 
 ### M0 — 스캐폴딩 (Claude 전담)
 
@@ -258,6 +262,8 @@ CI, ArchUnit 규칙, 헬스체크, 프론트 뼈대.
 완료 기준: `docker compose up` 후 백엔드/프론트 기동, ArchUnit 통과, CI 초록.
 
 ### M1 — 주문 코어와 동시성 제어
+
+→ 작업지시서: [docs/milestones/M1-order-core.md](../../milestones/M1-order-core.md)
 
 주문 상태머신, 재고 차감. 의도적으로 3단계로 진화시킨다.
 
@@ -365,3 +371,13 @@ Claude는 답을 제시하지 않고 질문한다.
 원격: https://github.com/somefood/commerce-lab (public)
 
 전역 설치 플러그인·스킬은 이식되지 않는다. 프로젝트에 필수인 것은 `.claude/skills/`에 넣어 커밋한다.
+
+## 12. 도구 실행 환경 (M0에서 확정)
+
+- 패키지 매니저는 npm을 쓴다 (pnpm 미설치).
+- k6는 설치하지 않고 Docker 이미지 `grafana/k6`로 실행한다.
+- Gradle CLI가 없으므로 모든 빌드는 `./gradlew` 래퍼로 한다 (Gradle 9.3.0, 2026-08-19 8.14.3에서 상향).
+- Kotlin 2.2.21. 2.1.20의 Gradle 플러그인이 legacy Usage 속성을 선언해 Gradle 10에서 에러가 되므로 함께 올렸다.
+- 의존성 버전 관리는 `io.spring.dependency-management` 플러그인 대신 Gradle 네이티브 `platform()`으로 한다.
+- Grafana는 3001 포트를 쓴다. 프론트엔드가 3000을 점유하기 때문이다.
+- jOOQ는 M0 범위에서 제외했다. 조회 최적화가 실제로 필요해지는 M1 3단계에서 도입한다.

@@ -1,0 +1,92 @@
+name: commerce-lab
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: commerce-postgres
+    environment:
+      POSTGRES_DB: commerce
+      POSTGRES_USER: commerce
+      POSTGRES_PASSWORD: commerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commerce -d commerce"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: commerce-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redpanda:
+    image: redpandadata/redpanda:v24.2.7
+    container_name: commerce-redpanda
+    # 호스트 포트가 9092가 아닌 19092인 이유:
+    # 이 머신에는 이 프로젝트와 무관한 Kafka 컨테이너가 이미 9092를 점유하고 있다.
+    # 남의 컨테이너를 내리는 대신 우리 쪽 포트를 옮겼다.
+    #
+    # 리스너를 둘로 나눈 이유:
+    # 카프카 클라이언트는 처음 붙은 주소가 아니라 브로커가 알려주는 advertised 주소로 다시 붙는다.
+    # 컨테이너 안에서 도는 rpk와 호스트에서 도는 애플리케이션은 서로 다른 주소로 브로커에 도달하므로,
+    # 각자에게 맞는 advertised 주소를 돌려주려면 리스너가 둘이어야 한다.
+    # 하나만 두면 둘 중 한쪽은 반드시 "붙었다가 엉뚱한 주소로 재접속하며 실패"한다.
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://commerce-redpanda:9092,external://localhost:19092
+    ports:
+      - "19092:19092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: commerce-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: commerce-grafana
+    # 프론트엔드가 3000을 쓰므로 3001로 옮긴다
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      # 데이터소스와 대시보드를 파일로 고정한다. UI에서 만든 것은 컨테이너를 지우면 사라지고,
+      # 다른 머신에서 clone 했을 때 재현되지 않는다.
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres-data:
