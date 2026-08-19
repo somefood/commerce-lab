@@ -627,7 +627,7 @@ UPDATE "order".reservations
 
 ### 지금: 1단계 — 락 없이 만들고 깨뜨리기
 
-- [ ] **1. `V1__create_order_tables.sql` 완성**
+- [x] ~~**1. `V1__create_order_tables.sql` 완성**~~ — 완료. Flyway 적용·제약 동작 확인
   - 위치: `backend/bootstrap/src/main/resources/db/migration/`
   - 테이블 5개 + `products`: §3의 컬럼 목록대로
   - `inventories`에 CHECK 제약 (§3 하단 SQL)
@@ -650,7 +650,9 @@ UPDATE "order".reservations
   - **완료 판정:** `./gradlew :modules:order:order-api:build` 성공
   - 끝나면 나에게 알려줄 것 → §5 테스트 파일을 본문까지 채워 커밋한다
 
-- [ ] **3. 도메인 모델 + 단위 테스트 통과**
+- [x] ~~**2. `order-api` 시그니처 확정**~~ — 완료. `DomainResult<OrderError, PlaceOrder>`
+- [ ] **3. 도메인 모델 + 단위 테스트 통과** ← **지금 여기.** 12건 중 4건 실패.
+      남은 수정 목록은 [PROGRESS.md 인수인계 절](../PROGRESS.md)에 있다
   - 위치: `backend/modules/order/order-core/src/main/kotlin/`
   - **완료 판정:** `./gradlew :modules:order:order-core:test` — §5.1의 4건 통과
 
