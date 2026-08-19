@@ -19,7 +19,7 @@ CREATE table "order".products
 
 CREATE table "order".orders
 (
-    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id           varchar(100) PRIMARY KEY,
     account_id   varchar(100) NOT NULL,
     status       varchar(20)  NOT NULL,
     total_amount bigint       NOT NULL,
@@ -37,7 +37,7 @@ CREATE table "order".orders
 CREATE table "order".order_lines
 (
     id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    order_id    bigint       NOT NULL,
+    order_id    varchar(100) NOT NULL,
     product_id  varchar(100) NOT NULL,
     quantity    integer      NOT NULL,
     unit_amount bigint       NOT NULL,
@@ -71,7 +71,7 @@ CREATE table "order".inventories
 CREATE table "order".reservations
 (
     id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    order_id   bigint       NOT NULL,
+    order_id   varchar(100) NOT NULL,
     product_id varchar(100) NOT NULL,
     quantity   integer      NOT NULL,
     status     varchar(20)  NOT NULL,
