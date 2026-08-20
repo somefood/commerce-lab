@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import com.commercelab.bootstrap.CommerceLabApplication
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.client.TestRestTemplate
@@ -34,7 +35,15 @@ import org.testcontainers.junit.jupiter.Testcontainers
  * H2가 아니라 Postgres인 이유: SELECT FOR UPDATE, 조건부 UPDATE, 격리 수준의 동작이
  * DB마다 다르다. 테스트가 프로덕션과 다른 DB를 쓰면 락 테스트는 전부 거짓 안심이 된다.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// classes를 명시하는 이유: @SpringBootTest는 테스트가 놓인 패키지에서 위로 올라가며
+// @SpringBootConfiguration을 찾는다. 이 테스트는 com.commercelab.order에 있고 앱 클래스는
+// com.commercelab.bootstrap에 있어 상위 경로가 아니다. 못 찾으면 컨텍스트 로딩 자체가 실패한다.
+// 테스트를 bootstrap 패키지로 옮기는 대신 여기 두는 이유는, 이 스펙이 order 도메인의
+// 스펙이지 부트 앱의 스펙이 아니기 때문이다.
+@SpringBootTest(
+    classes = [CommerceLabApplication::class],
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+)
 @ActiveProfiles("dev")
 @Testcontainers
 class ConcurrentOrderIntegrationTest {

@@ -35,4 +35,12 @@ tasks.withType<Test>().configureEach {
     testLogging {
         events("passed", "skipped", "failed")
     }
+
+    // Testcontainers가 쓰는 docker-java는 API 버전 협상에 실패하면 1.32로 떨어진다.
+    // Docker 29부터 최소 지원 API가 1.40이라 그 요청이 400으로 거부되고, 겉으로는
+    // "Could not find a valid Docker environment"로 보인다. 소켓 문제가 아니라 버전 문제다.
+    //
+    // 1.41은 Docker 20.10의 API다. 최소선(1.40)보다 높고, 그보다 새로운 서버는
+    // 하위 호환으로 받아준다. 특정 머신에서 다른 값이 필요하면 DOCKER_API_VERSION으로 덮는다.
+    systemProperty("api.version", System.getenv("DOCKER_API_VERSION") ?: "1.41")
 }
