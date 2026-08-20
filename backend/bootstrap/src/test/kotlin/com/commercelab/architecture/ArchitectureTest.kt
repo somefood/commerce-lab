@@ -17,6 +17,14 @@ class ArchitectureTest {
     companion object {
         private lateinit var classes: JavaClasses
 
+        // 두 애노테이션 모두 스프링이 트랜잭션 경계로 인식한다.
+        // 한쪽만 검사하면 다른 쪽을 import해 규칙을 우회할 수 있고,
+        // 그때 규칙은 초록불을 유지한 채 아무것도 막지 못한다.
+        private val TRANSACTIONAL_ANNOTATIONS = arrayOf(
+            "org.springframework.transaction.annotation.Transactional",
+            "jakarta.transaction.Transactional",
+        )
+
         @BeforeAll
         @JvmStatic
         fun importClasses() {
@@ -89,31 +97,45 @@ class ArchitectureTest {
     fun `order의 트랜잭션 경계는 application 패키지에만 있다`() {
         // 리포지터리마다 트랜잭션을 열면 주문 생성이 원자적이지 않게 된다.
         // 트랜잭션을 여는 지점을 한 계층으로 못 박는다.
-        noMethods()
-            .that().areDeclaredInClassesThat().resideInAPackage("com.commercelab.order..")
-            .and().areDeclaredInClassesThat().resideOutsideOfPackage("com.commercelab.order.application..")
-            .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
-            .because("트랜잭션 경계는 애플리케이션 서비스가 소유한다. 도메인도 리포지터리도 열지 않는다")
-            .allowEmptyShould(true)
-            .check(classes)
+        TRANSACTIONAL_ANNOTATIONS.forEach { annotation ->
+            noMethods()
+                .that().areDeclaredInClassesThat().resideInAPackage("com.commercelab.order..")
+                .and().areDeclaredInClassesThat().resideOutsideOfPackage("com.commercelab.order.application..")
+                .should().beAnnotatedWith(annotation)
+                .because("트랜잭션 경계는 애플리케이션 서비스가 소유한다. 도메인도 리포지터리도 열지 않는다")
+                .allowEmptyShould(true)
+                .check(classes)
+
+            noClasses()
+                .that().resideInAPackage("com.commercelab.order..")
+                .and().resideOutsideOfPackage("com.commercelab.order.application..")
+                .should().beAnnotatedWith(annotation)
+                .because("트랜잭션 경계는 애플리케이션 서비스가 소유한다. 도메인도 리포지터리도 열지 않는다")
+                .allowEmptyShould(true)
+                .check(classes)
+        }
     }
 
     @Test
     fun `bootstrap 클래스에는 트랜잭션 경계가 없다`() {
-        noClasses()
-            .that().resideInAPackage("com.commercelab.bootstrap..")
-            .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
-            .because("bootstrap이 트랜잭션을 열면 여러 모듈이 한 트랜잭션에 묶인다. 그러면 M4에서 분리할 수 없다")
-            .check(classes)
+        TRANSACTIONAL_ANNOTATIONS.forEach { annotation ->
+            noClasses()
+                .that().resideInAPackage("com.commercelab.bootstrap..")
+                .should().beAnnotatedWith(annotation)
+                .because("bootstrap이 트랜잭션을 열면 여러 모듈이 한 트랜잭션에 묶인다. 그러면 M4에서 분리할 수 없다")
+                .check(classes)
+        }
     }
 
     @Test
     fun `bootstrap 메서드에도 트랜잭션 경계가 없다`() {
         // 클래스 검사만으로는 부족하다. @Transactional은 메서드에 붙는 경우가 더 흔하다.
-        noMethods()
-            .that().areDeclaredInClassesThat().resideInAPackage("com.commercelab.bootstrap..")
-            .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
-            .because("bootstrap이 트랜잭션을 열면 여러 모듈이 한 트랜잭션에 묶인다. 그러면 M4에서 분리할 수 없다")
-            .check(classes)
+        TRANSACTIONAL_ANNOTATIONS.forEach { annotation ->
+            noMethods()
+                .that().areDeclaredInClassesThat().resideInAPackage("com.commercelab.bootstrap..")
+                .should().beAnnotatedWith(annotation)
+                .because("bootstrap이 트랜잭션을 열면 여러 모듈이 한 트랜잭션에 묶인다. 그러면 M4에서 분리할 수 없다")
+                .check(classes)
+        }
     }
 }
