@@ -15,6 +15,9 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation(libs.springdoc.openapi.webmvc)
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
+    // 앱 클래스가 @EntityScan / @EnableJpaRepositories로 모듈의 영속성 계층을 조립한다.
+    // order-core는 JPA를 implementation으로 갖고 있어 밖으로 새지 않으므로 여기에도 필요하다.
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 
     // 스키마 마이그레이션. 실행되는 DDL이 레포에 SQL 파일로 남는다.
     // ddl-auto를 쓰지 않는 이유는 docs/milestones/M1-order-core.md §2에 있다.

@@ -7,6 +7,18 @@ spring:
     password: commerce
   jackson:
     default-property-inclusion: non_null
+  jpa:
+    hibernate:
+      # 스키마는 Flyway가 소유한다. 하이버네이트는 만들지 않고 검사만 한다.
+      # 엔티티와 테이블이 어긋나면 첫 쿼리가 아니라 부팅에서 실패한다 —
+      # @Table 누락이나 컬럼 오타를 즉시 드러내려는 것이다.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        # 실행된 SQL을 로그로 본다. M1은 어떤 쿼리가 언제 나가는지가 학습 대상이다.
+        format_sql: true
+
   flyway:
     enabled: true
     # 이력 테이블(flyway_schema_history)은 기본 스키마(public)에 둔다.
