@@ -651,12 +651,12 @@ UPDATE "order".reservations
   - 끝나면 나에게 알려줄 것 → §5 테스트 파일을 본문까지 채워 커밋한다
 
 - [x] ~~**2. `order-api` 시그니처 확정**~~ — 완료. `DomainResult<OrderError, PlaceOrder>`
-- [ ] **3. 도메인 모델 + 단위 테스트 통과** ← **지금 여기.** 12건 중 4건 실패.
-      남은 수정 목록은 [PROGRESS.md 인수인계 절](../PROGRESS.md)에 있다
-  - 위치: `backend/modules/order/order-core/src/main/kotlin/`
-  - **완료 판정:** `./gradlew :modules:order:order-core:test` — §5.1의 4건 통과
+- [x] ~~**3. 도메인 모델 + 단위 테스트 통과**~~ — 완료 (`ee2d88a`). 도메인 테스트 17건 통과
+  - `Order.place` / `markPaid` / `cancel` + `OrderError` 8종
+  - 상태 전이는 `else` 없는 `when(status)`. `OrderStatus`에 값이 추가되면 컴파일이 깨진다
+  - `updatedAt` 스펙 5건을 별도로 고정했다 (§5.1)
 
-- [ ] **4. 락 없이 구현 + REST 어댑터**
+- [ ] **4. 락 없이 구현 + REST 어댑터** ← **지금 여기**
   - 재고를 조회하고, 검사하고, UPDATE한다. **락을 걸지 않는다** (일부러)
   - bootstrap에 §4.3의 엔드포인트 5개. `/api/dev/reset`은 `dev` 프로필에만
   - 주의: `@Transactional`은 order-core에만. bootstrap에 붙이면 ArchUnit이 빌드를 깬다
