@@ -227,6 +227,50 @@ bootstrap의 컨트롤러에 `@Transactional`을 붙이면 ArchUnit이 빌드를
 
 ---
 
+## 4-1. 도메인 모델과 영속성 모델을 분리한다 (2026-08-20 결정)
+
+`order-core`는 설계문서 §3.2에서 "도메인 + 구현"이므로 프레임워크를 써도 된다.
+프레임워크 의존이 금지된 모듈은 `contract` 하나뿐이다.
+
+그럼에도 **도메인 클래스에 `@Entity`를 붙이지 않는다.** 패키지로 나눈다.
+
+```
+order-core/src/main/kotlin/com/commercelab/order/
+├─ domain/           Order, OrderLine, Inventory, Reservation  ← 프레임워크를 모른다
+│                    OrderRepository 등 포트 인터페이스
+├─ application/      OrderPlacementService  ← @Transactional은 여기에만
+└─ infrastructure/   OrderEntity, OrderJpaRepository, 어댑터(도메인 ↔ 엔티티 변환)
+```
+
+**왜 나누는가.** `Order`는 `data class`에 모든 프로퍼티가 `val`이고, 상태 전이를 `copy()`로
+새 객체를 만들어 처리한다. JPA는 반대를 요구한다 — 변경 가능한 필드와 기본 생성자가 있어야
+더티 체킹이 동작하고, `copy()`가 만든 객체는 영속성 컨텍스트 입장에서 다른 객체다.
+
+M1 후반부에서 더 분명해진다. 3단계의 선점 확정은 조건부 UPDATE(compare-and-set)로 하는데
+더티 체킹으로 표현할 수 없어 JPQL이나 네이티브 쿼리를 직접 쓴다. 2단계의 `@Version`도
+영속성의 관심사지 도메인의 관심사가 아니다. 한 클래스에 두면 그 SQL과 버전 필드가
+도메인 규칙 옆에 섞인다.
+
+**포기하는 것:** 매핑 코드. 엔티티마다 도메인 ↔ 엔티티 변환이 생기고, 필드를 추가할 때
+두 곳을 고쳐야 한다. 빠뜨리면 조용히 값이 사라진다. 도메인 규칙이 얇은 CRUD였다면
+이 비용이 아깝지만, M1은 도메인 규칙 자체가 학습 대상이다.
+
+**강제 수단:** ArchUnit 규칙 2건을 추가했다 (`bootstrap/src/test/.../ArchitectureTest.kt`).
+
+| 규칙 | 막는 것 |
+|---|---|
+| `order 도메인은 영속성 기술을 알지 못한다` | domain 패키지가 `jakarta.persistence` / `org.springframework.data` / `org.hibernate`에 의존 |
+| `order의 트랜잭션 경계는 application 패키지에만 있다` | 도메인·리포지터리가 `@Transactional`을 여는 것 |
+
+두 규칙 모두 `allowEmptyShould(true)`가 붙어 있다. 해당 패키지에 클래스가 생기면 그 줄을 지운다.
+첫 번째 규칙은 `domain`에 `@Entity` 클래스를 넣어 실제로 FAILED가 되는 것을 역검증했다.
+
+**면접에서 이렇게 말한다:** "도메인 모델과 영속성 모델을 분리했습니다. 매핑 비용이 들지만
+선점 확정에 조건부 UPDATE가 필요했고, 낙관적 락의 버전 필드도 영속성의 관심사라 도메인에
+새는 걸 원하지 않았습니다. 경계는 ArchUnit으로 강제해서 편의를 위해 무너뜨릴 수 없게 했습니다."
+
+---
+
 ## 5. 실패하는 테스트 — 실행 가능한 스펙
 
 Claude가 제공하는 스펙이다. 구현 전에는 전부 실패한다.
@@ -616,7 +660,8 @@ UPDATE "order".reservations
 - ADR-0002: 스키마 마이그레이션 도구 (§2)
 - ADR-0003: 재고 동시성 제어 방식 — 낙관적 락 vs 비관적 락 (2단계 수치 근거)
 - ADR-0004: 선점 만료 구동 방식 — 배치 단독, TTL 3분 / 주기 5초 (§11 합의 결과)
-- ADR-0005: 도메인 에러 표현 — `kotlin.Result` vs 자체 `Either` (§4.1에서 부딪힌 결과)
+- ADR-0005: 도메인 에러 표현 — `kotlin.Result` vs 자체 `DomainResult` (§4.1에서 부딪힌 결과)
+- ADR-0006: 도메인 모델과 영속성 모델 분리 (§4-1)
 
 ---
 

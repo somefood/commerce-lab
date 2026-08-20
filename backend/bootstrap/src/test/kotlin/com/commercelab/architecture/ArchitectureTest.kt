@@ -64,6 +64,41 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `order 도메인은 영속성 기술을 알지 못한다`() {
+        // 도메인 모델과 JPA 엔티티를 분리하기로 한 결정(M1 §4-1)을 강제한다.
+        // 매핑이 귀찮다고 도메인 클래스에 @Entity를 붙이는 순간 빌드가 깨진다.
+        //
+        // 왜 막는가: JPA는 엔티티가 변경 가능하고 기본 생성자를 갖기를 요구한다.
+        // 도메인이 그 요구를 받아들이면 불변 설계와 copy() 기반 상태 전이가 무너진다.
+        // 3단계의 조건부 UPDATE도 더티 체킹으로는 표현할 수 없어 결국 SQL이
+        // 도메인 옆에 붙게 된다.
+        noClasses()
+            .that().resideInAPackage("com.commercelab.order.domain..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "jakarta.persistence..",
+                "org.springframework.data..",
+                "org.hibernate..",
+            )
+            .because("도메인은 저장 방식을 몰라야 한다. 영속성 모델은 infrastructure 패키지가 갖는다")
+            // 아직 domain 패키지가 비어 있다. 클래스가 생기면 이 줄을 지운다.
+            .allowEmptyShould(true)
+            .check(classes)
+    }
+
+    @Test
+    fun `order의 트랜잭션 경계는 application 패키지에만 있다`() {
+        // 리포지터리마다 트랜잭션을 열면 주문 생성이 원자적이지 않게 된다.
+        // 트랜잭션을 여는 지점을 한 계층으로 못 박는다.
+        noMethods()
+            .that().areDeclaredInClassesThat().resideInAPackage("com.commercelab.order..")
+            .and().areDeclaredInClassesThat().resideOutsideOfPackage("com.commercelab.order.application..")
+            .should().beAnnotatedWith("org.springframework.transaction.annotation.Transactional")
+            .because("트랜잭션 경계는 애플리케이션 서비스가 소유한다. 도메인도 리포지터리도 열지 않는다")
+            .allowEmptyShould(true)
+            .check(classes)
+    }
+
+    @Test
     fun `bootstrap 클래스에는 트랜잭션 경계가 없다`() {
         noClasses()
             .that().resideInAPackage("com.commercelab.bootstrap..")
