@@ -7,5 +7,6 @@ sealed interface OrderError {
     data class OrderNotFound(val orderId: String) : OrderError
     data class ConflictExhausted(val attempts: Int) : OrderError
     data object ReservationAlreadySettled : OrderError
-    data class InvalidStatusTransition(val a: OrderStatus, val b: OrderStatus) : OrderError
+    data class InvalidStatusTransition(val from: OrderStatus, val to: OrderStatus) : OrderError
+    data object EmptyOrder : OrderError
 }

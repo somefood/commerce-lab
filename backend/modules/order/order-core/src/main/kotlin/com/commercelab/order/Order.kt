@@ -1,6 +1,5 @@
 package com.commercelab.order
 
-import ch.qos.logback.core.spi.ErrorCodes
 import com.commercelab.common.DomainResult
 import com.commercelab.common.Money
 import com.commercelab.order.api.OrderError
@@ -12,6 +11,7 @@ data class Order(
     val accountId: String,
     val lines: List<OrderLine>,
     val placedAt: Instant,
+    val updatedAt: Instant,
     val status: OrderStatus,
     val totalAmount: Money
 ) {
@@ -20,44 +20,33 @@ data class Order(
         fun place(orderId: String, accountId: String, lines: List<OrderLine>, now: Instant)
                 : DomainResult<OrderError, Order> {
 
+            if (lines.isEmpty()) {
+                return DomainResult.failure(OrderError.EmptyOrder)
+            }
+
+            val invalidLine = firstInvalidLine(lines)
+            if (invalidLine != null) {
+                return DomainResult.failure(
+                    OrderError.InvalidQuantity(invalidLine.productId, invalidLine.quantity)
+                )
+            }
+
             val totalAmount = calculateTotalAmount(lines)
-
-            if (validateOrderLines(lines)) {
-                return DomainResult.failure(OrderError.ReservationAlreadySettled)
-            }
-
-            if (validateOrderLines2(lines)) {
-                return DomainResult.failure(OrderError.InvalidQuantity("p-1", 0))
-            }
-
             val order = Order(
                 orderId = orderId,
                 accountId = accountId,
                 lines = lines,
                 placedAt = now,
+                updatedAt = now,
                 status = OrderStatus.CREATED,
                 totalAmount = totalAmount,
             )
 
-
             return DomainResult.success(order)
         }
 
-        private fun validateOrderLines2(lines: List<OrderLine>): Boolean {
-            val allMatch = lines.stream().allMatch { it -> it.quantity <= 0 }
-            if (allMatch) {
-                return true
-            }
-            return false
-        }
-
-        private fun validateOrderLines(lines: List<OrderLine>): Boolean {
-            if (lines.isEmpty()) {
-                return true
-            }
-
-            return false;
-        }
+        private fun firstInvalidLine(lines: List<OrderLine>): OrderLine? =
+            lines.firstOrNull { it.quantity <= 0 }
 
         private fun calculateTotalAmount(lines: List<OrderLine>): Money {
             return lines.fold(Money.ZERO) { acc, line ->
@@ -67,28 +56,27 @@ data class Order(
     }
 
     fun markPaid(now: Instant): DomainResult<OrderError, Order> {
-
-        if (status == OrderStatus.CANCELLED) {
-            return DomainResult.failure(OrderError.InvalidStatusTransition(OrderStatus.CANCELLED, OrderStatus.PAID))
+        return when (status) {
+            OrderStatus.CREATED -> DomainResult.success(copy(status = OrderStatus.PAID, updatedAt = now))
+            OrderStatus.PAID,
+            OrderStatus.CANCELLED,
+            OrderStatus.SHIPPED,
+            OrderStatus.DELIVERED ->
+                DomainResult.failure(OrderError.InvalidStatusTransition(status, OrderStatus.PAID))
         }
-
-        if (status == OrderStatus.CREATED) {
-            return DomainResult.success(copy(status = OrderStatus.PAID))
-        }
-
-        return DomainResult.failure(OrderError.InvalidStatusTransition(OrderStatus.CANCELLED, OrderStatus.PAID))
     }
 
     fun cancel(now: Instant): DomainResult<OrderError, Order> {
-        if (status == OrderStatus.PAID) {
-            return DomainResult.success(copy(status = OrderStatus.CANCELLED))
-        }
+        return when (status) {
+            OrderStatus.CREATED,
+            OrderStatus.PAID ->
+                DomainResult.success(copy(status = OrderStatus.CANCELLED, updatedAt = now))
 
-        if (status == OrderStatus.CANCELLED) {
-            return DomainResult.failure(OrderError.InvalidStatusTransition(OrderStatus.CANCELLED, OrderStatus.CANCELLED))
+            OrderStatus.CANCELLED,
+            OrderStatus.SHIPPED,
+            OrderStatus.DELIVERED ->
+                DomainResult.failure(OrderError.InvalidStatusTransition(status, OrderStatus.CANCELLED))
         }
-
-        return DomainResult.success(copy(status = OrderStatus.CANCELLED))
     }
 }
 

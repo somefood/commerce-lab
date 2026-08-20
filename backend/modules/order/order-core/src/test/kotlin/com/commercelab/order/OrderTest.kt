@@ -44,6 +44,9 @@ class OrderTest {
 
     private val 지금 = Instant.parse("2026-08-19T10:00:00Z")
 
+    /** 상태 전이가 일어나는 시각. 지금과 달라야 "갱신됐는지"를 판별할 수 있다. */
+    private val 나중 = Instant.parse("2026-08-19T11:30:00Z")
+
     private fun 주문라인(productId: String, quantity: Int, unitAmount: Long) =
         OrderLine(productId = productId, quantity = quantity, unitAmount = Money.of(unitAmount))
 
@@ -215,6 +218,53 @@ class OrderTest {
         val result = paid.cancel(지금)
 
         assertEquals(OrderStatus.CANCELLED, result.getOrNull()?.status)
+    }
+
+    @Test
+    fun `주문을 만들면 placedAt과 updatedAt이 같다`() {
+        val order = 주문생성()
+
+        assertEquals(지금, order.placedAt)
+        assertEquals(지금, order.updatedAt, "생성 시점에는 마지막 변경이 곧 생성이다")
+    }
+
+    @Test
+    fun `결제하면 updatedAt은 갱신되고 placedAt은 그대로다`() {
+        val paid = 주문생성().markPaid(나중).getOrNull()!!
+
+        assertEquals(나중, paid.updatedAt, "상태가 바뀌면 updated_at도 그 시각으로 움직여야 한다")
+        assertEquals(지금, paid.placedAt, "주문한 시각은 사후에 바뀌지 않는다")
+    }
+
+    @Test
+    fun `CREATED 주문을 취소하면 updatedAt이 취소 시각으로 갱신된다`() {
+        val cancelled = 주문생성().cancel(나중).getOrNull()!!
+
+        assertEquals(나중, cancelled.updatedAt)
+        assertEquals(지금, cancelled.placedAt)
+    }
+
+    @Test
+    fun `PAID 주문을 취소해도 updatedAt이 갱신된다`() {
+        // CREATED와 PAID는 cancel 안에서 서로 다른 분기를 탄다.
+        // 한쪽 분기만 now를 반영하는 실수가 실제로 두 번 있었다. 두 경로를 따로 고정한다.
+        val paid = 주문생성().markPaid(지금).getOrNull()!!
+
+        val cancelled = paid.cancel(나중).getOrNull()!!
+
+        assertEquals(나중, cancelled.updatedAt, "결제 경로로 들어온 취소도 시각을 남겨야 한다")
+    }
+
+    @Test
+    fun `전이에 실패해도 원본 주문은 그대로다`() {
+        // 실패는 새 Order를 만들지 않는다. 원본이 조용히 바뀌면 호출자는 어느 값을 믿어야 할지 모른다.
+        val cancelled = 주문생성().cancel(지금).getOrNull()!!
+
+        val result = cancelled.markPaid(나중)
+
+        assertTrue(result.isFailure)
+        assertEquals(OrderStatus.CANCELLED, cancelled.status)
+        assertEquals(지금, cancelled.updatedAt, "실패한 전이가 원본의 시각을 건드리면 안 된다")
     }
 
     private fun 주문생성(): Order =
