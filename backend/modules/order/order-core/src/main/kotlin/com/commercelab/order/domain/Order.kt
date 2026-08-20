@@ -1,4 +1,4 @@
-package com.commercelab.order
+package com.commercelab.order.domain
 
 import com.commercelab.common.DomainResult
 import com.commercelab.common.Money
