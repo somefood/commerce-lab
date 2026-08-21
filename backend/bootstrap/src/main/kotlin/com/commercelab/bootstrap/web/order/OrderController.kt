@@ -1,6 +1,8 @@
 package com.commercelab.bootstrap.web.order
 
+import com.commercelab.common.fold
 import com.commercelab.order.api.OrderPlacement
+import com.commercelab.order.api.PlaceOrder
 import com.commercelab.order.api.PlaceOrderCommand
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -15,8 +17,15 @@ class OrderController(
 ) {
 
     @PostMapping("/api/orders")
-    fun place(@RequestBody command: PlaceOrderCommand): ResponseEntity<*> {
-        TODO()
+    fun place(@RequestBody command: PlaceOrderCommand): ResponseEntity<PlaceOrder> {
+        return orderPlacement.place(command).fold(
+            onSuccess = { order ->
+                ResponseEntity.ok(order)
+            },
+            onFailure = { error ->
+                throw IllegalStateException("Order placement failed: $error")
+            }
+        )
     }
 
     @GetMapping("/api/orders/{orderId}")

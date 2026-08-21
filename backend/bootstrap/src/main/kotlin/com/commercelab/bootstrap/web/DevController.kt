@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController
 class DevController {
 
     @PostMapping("/api/dev/reset")
-    fun devRest() {
+    fun devReset() {
 
     }
 }
