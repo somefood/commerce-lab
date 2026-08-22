@@ -9,7 +9,8 @@
 
 > **문서 지도** — [진도](./docs/PROGRESS.md)에서 시작한다.
 > [설계문서](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md) · [마일스톤](./docs/milestones/) ·
-> [ADR](./docs/adr/) · [인프라](./infra/README.md) · [README](./README.md)
+> [ADR](./docs/adr/) · [용어 사전](./docs/glossary.md) · [Kotlin 노트](./docs/kotlin-notes.md) ·
+> [인프라](./infra/README.md) · [README](./README.md)
 
 ## 1. 역할 분담 (절대 규칙)
 

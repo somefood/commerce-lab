@@ -23,6 +23,8 @@
 | [설계문서](./docs/superpowers/specs/2026-08-18-commerce-lab-design.md) | 아키텍처, 도메인 모델, 불변 규칙, 마일스톤 전체 계획 | Claude |
 | [마일스톤 문서](./docs/milestones/) | 마일스톤별 작업지시서. 설계 근거 + 실패 테스트 + 할 일 체크리스트 | Claude |
 | [ADR](./docs/adr/) | 결정 기록. 왜 그렇게 정했고 무엇을 버렸나 | 사용자 |
+| [용어 사전](./docs/glossary.md) | 이커머스 도메인 용어. 부딪힌 순서대로 쌓는다 | 사용자 |
+| [Kotlin 노트](./docs/kotlin-notes.md) | Java 8 ↔ Kotlin 대응. 낯선 문법을 만날 때마다 | 사용자 |
 | [협업 규칙 CLAUDE.md](./CLAUDE.md) | 역할 분담, 리뷰 방식, 아키텍처 불변 규칙 | 양쪽 |
 | [인프라 사용법](./infra/README.md) | 컨테이너 기동, 접속 정보, 자주 쓰는 명령 | Claude |
 | [마이그레이션 규칙](./backend/bootstrap/src/main/resources/db/migration/README.md) | Flyway 파일명 규칙과 금지 사항 | Claude |

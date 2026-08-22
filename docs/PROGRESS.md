@@ -2,7 +2,8 @@
 
 > **문서 지도** — 이 파일이 시작점이다.
 > [설계문서](./superpowers/specs/2026-08-18-commerce-lab-design.md) · [협업 규칙](../CLAUDE.md) ·
-> [마일스톤](./milestones/) · [ADR](./adr/) · [인프라](../infra/README.md) · [README](../README.md)
+> [마일스톤](./milestones/) · [ADR](./adr/) · [용어 사전](./glossary.md) · [Kotlin 노트](./kotlin-notes.md) ·
+> [인프라](../infra/README.md) · [README](../README.md)
 
 세션 시작 시 Claude가 가장 먼저 읽는 파일이다. 현재 위치와 다음 할 일을 여기서 판단한다.
 
