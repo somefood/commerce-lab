@@ -15,132 +15,175 @@
 
 ---
 
-## 인수인계 (2026-08-21 기준)
+## 인수인계 (2026-08-23 기준)
 
 다른 머신에서 이어받을 때 이 절만 읽으면 된다. 브랜치는 `m1-step1-no-lock`.
 
 ### 지금 딱 멈춘 지점
 
-M1 §13-4. **컴파일은 통과하고 단위·아키텍처 테스트도 전부 통과한다.**
-다만 앱은 아직 못 뜬다 — `OrderRepository` 구현체가 없어서 `OrderPlacementService`
-빈을 만들 수 없다.
+M1 §13-5. **1단계 구현이 끝났고 오버셀을 관측했다.** 남은 것은 k6 수치와 리뷰다.
 
 ```bash
 cd backend
-./gradlew compileKotlin                    # 통과
-./gradlew :modules:order:order-core:test   # 17건 통과
-./gradlew :bootstrap:archTest              # 7건 통과
-./gradlew :bootstrap:test                  # 컨텍스트 로딩 실패 ← OrderRepository 빈 없음
+./gradlew :bootstrap:test
+# ArchUnit 7건 PASSED, HealthIntegrationTest 3건 PASSED
+# ConcurrentOrderIntegrationTest 1건 FAILED  ← 1단계에서는 이게 정상이다
+#   "성공 건수가 재고를 넘으면 오버셀이다. 초과분 = 50건 ==> expected: <50> but was: <100>"
 ```
 
-아직 "오버셀 관측"이 아니다. 재고 로직 자체가 없다.
+**이 실패가 관측 결과다.** 2단계에서 통과로 바뀐다.
 
-### 이번 세션에 생긴 것
+### 1단계 관측 결과 (M1 §8 표 1행)
 
-| 파일 | 내용 |
+| 항목 | 값 |
 |---|---|
-| `domain/Product.kt` | 신규. `id` + `unitAmount: Money` |
-| `domain/ProductRepository.kt` | 신규. `findByIds(ids): List<Product>` |
-| `infrastructure/ProductJpaRepository.kt` | 신규 |
-| `infrastructure/ProductRepositoryAdapter.kt` | 신규. **어댑터 표준형 — 나머지 둘은 이걸 따라간다** |
-| `domain/OrderRepository.kt` | `save(placedOrder: Order): Order` |
-| `application/OrderPlacementService.kt` | `place()` 흐름 배선. 재고 없음 |
-| `bootstrap/.../OrderController.kt` | `place()`만 `fold`로 배선 |
+| 동시 요청 / 재고 | 100 / 50 |
+| 성공 주문 | **100** |
+| 오버셀 | **50** |
+| DB `reserved` | **21** ← 갱신 손실. 돌릴 때마다 다르다 |
+| 5xx | 0 |
+| TPS / p95 / p99 | **미측정 — k6 남음** |
+
+두 가지 고장이 동시에 일어났다.
+
+- **오버셀** — 낡은 값을 읽고 검사해서 통과시킨다. 재고 50에 100건이 팔렸다
+- **갱신 손실** — `SET reserved = 읽은값 + 1`이 그 사이 남이 쓴 값을 덮어쓴다.
+  100건을 팔았는데 장부에는 21로 적혔다. **판 사실 자체가 사라졌다**
+
+`DB reserved` 컬럼은 이 관측 때문에 §8 표에 나중에 추가한 것이다.
+
+### 실패 경로 실측 (재고 1, 순차 5요청)
+
+```
+성공        201  Location + PlaceOrder 본문
+재고부족    409  application/problem+json  type=out-of-stock
+상품없음    404  type=product-not-found
+잘못된수량  400  type=invalid-quantity
+빈주문      400  type=empty-order
+DB: orders=1  order_lines=1  reserved=1   ← 실패한 4건은 아무것도 쓰지 않았다
+```
+
+### 이번 세션에 생긴 것 / 바뀐 것
+
+| 파일 | 누가 | 내용 |
+|---|---|---|
+| `domain/Inventory.kt` | 사용자 | 신규. `total`/`reserved`/`version` + `addReserved(): DomainResult` |
+| `domain/InventoryRepository.kt` | 사용자 | 조회와 갱신을 **일부러 분리** — 그 틈이 오버셀 통로다 |
+| `infrastructure/InventoryEntity.kt` · `InventoryJpaRepository.kt` · `InventoryRepositoryAdapter.kt` | 사용자 | 신규 |
+| `infrastructure/OrderRepositoryAdapter.kt` · `OrderLineRepository.kt` | 사용자 | 신규. orders + order_lines 두 테이블에 쓴다 |
+| `application/OrderPlacementService.kt` | **Claude** | 읽기·계산 / 쓰기 두 구간으로 재구성 |
+| `bootstrap/web/order/OrderController.kt` | **Claude** | `ResponseEntity<Any>` + `@ApiResponses` + `fold` |
+| `bootstrap/web/order/OrderProblems.kt` | **Claude** | 신규. `OrderError` → `ProblemDetail` 매핑표 |
+| `bootstrap/web/ProblemDetailAdvice.kt` | **Claude** | 전면 재작성. 예상 못 한 예외만 500 |
+| `bootstrap/web/DevController.kt` · `dto/DevResetRequest.kt` | **Claude** | 전면 재작성. products/inventories upsert + orders 삭제 |
+| `bootstrap/build.gradle.kts` | **Claude** | `jackson-module-kotlin` 추가 |
+| `docs/milestones/M1-order-core.md` | Claude | §4-2 신설, §8 표에 `DB reserved` 컬럼, §13 갱신 |
+
+Claude가 손댄 것은 전부 사용자가 명시적으로 지시한 것이다.
+
+### 이번에 밝혀진 함정 세 개 (전부 실측으로 확인)
+
+**1. `jackson-module-kotlin`이 없으면 모든 `@RequestBody`가 400이다**
+
+Kotlin은 생성자 파라미터 이름을 바이트코드에 남기지 않는다(`javap -v`에 `MethodParameters` 없음).
+Boot가 기본 등록하는 `jackson-module-parameter-names`만으로는 data class를 만들 수 없다.
+
+```
+InvalidDefinitionException: Cannot construct instance of `PlaceOrderCommand`
+  (no Creators, like default constructor, exist)
+```
+
+증상이 400이라 "요청 형식이 틀렸나" 쪽을 의심하게 만든다. 원인은 빌드 설정이었다.
+
+**2. `@ExceptionHandler(RuntimeException::class)`는 계측기를 고장낸다**
+
+이전 `ProblemDetailAdvice`가 모든 런타임 예외를 400으로 바꿨다.
+NPE도 커넥션 풀 고갈도 400. 5xx 그래프는 평평하고,
+통합 테스트의 `서버오류 == 0` 단언은 **영원히 통과했다.**
+
+규칙: 잡을 예외는 좁게. 안 잡힌 것이 500으로 나가는 건 정상 동작이다.
+
+**3. 실패를 값으로 돌려주면 트랜잭션이 롤백되지 않는다**
+
+스프링은 **예외**를 보고 롤백을 결정한다. 반환값은 보지 않는다.
+`DomainResult.failure`를 return 하는 것은 정상 종료라 그대로 커밋된다.
+실측: 성공 1건인데 `orders=2` — 실패한 주문이 DB에 남았다.
+
+해결은 `place()`를 **읽기·계산 구간**과 **쓰기 구간**으로 나눈 것.
+모든 검증이 쓰기 전에 끝나므로 되돌릴 것이 없다.
+(대안이던 `setRollbackOnly()`는 스프링 내부 API를 애플리케이션에 들인다)
+
+이 함정은 `DomainResult`를 도입한 순간 예약돼 있었다. 자세한 내용은 M1 §4-2.
+
+### ⚠ 다음 세션에서 이어서 이야기할 것 (미결)
+
+**"실패를 경계에서 값으로 옮길 것인가, 예외로 되돌릴 것인가"** — 결론이 나지 않았다.
+
+지금 컨트롤러는 `ResponseEntity<Any>` + `@ApiResponses` + `fold`로 **값으로** 옮긴다.
+`DomainResult`를 도입한 결정과 일관되기 때문이다.
+
+그런데 **Spring 진영의 주류는 예외 기반이다.** Spring 6이 `ErrorResponse`와
+`ErrorResponseException`을 추가한 것도 그 방향이고, 무엇보다
+**springdoc은 `@RestControllerAdvice` 핸들러의 `@ApiResponse`를 전역으로 적용한다** —
+에러 응답을 어드바이스에 한 번만 적으면 모든 엔드포인트에 붙는다.
+지금 방식의 "애노테이션이 장황하다"는 단점이 상당 부분 사라진다.
+
+되돌리는 비용은 작다. **컨트롤러만** 바꾸면 되고 `OrderProblems.kt`의 매핑표는 재사용된다.
+
+선택지 비교와 다음에 실측할 항목 3개는 **M1 §4-2의 "⚠ 다시 이야기할 것"** 에 정리해뒀다.
+결론은 ADR-0005에 남긴다.
+
+> 다른 세션에서 이 주제를 다시 꺼내 결정하고, 필요하면 컨트롤러를 고친다.
+> 지금 코드가 틀린 것은 아니다 — 동작하고 테스트도 통과한다. 관례와 다를 뿐이다.
 
 ### 사용자가 할 일 — 순서대로
 
-**1. `OrderPlacementService`의 상품 조회 부분** ← 여기부터 시작
-
-`findAllById`는 없는 id를 조용히 빼고 돌려준다. 3개 요청해도 2개가 올 수 있다.
-지금 코드는 못 찾은 라인을 `if (product != null)`로 **그냥 건너뛴다.**
-
-없는 상품 하나만 담아 주문하면 → `orderLines`가 비고 → `Order.place`가 `EmptyOrder`를
-반환한다. 클라이언트는 "빈 주문을 보냈다"는 답을 받는다. 실제로는 상품을 보냈는데.
-`OrderError.ProductNotFound`가 정의돼 있는데 코드 어디서도 안 쓰인다.
-
-> 하나라도 못 찾으면 전체가 실패해야 한다. `mutableListOf`에 `add`하는 구조로는
-> 그게 어렵다는 게 힌트다.
-
-**2. `OrderRepositoryAdapter` 만들기** (`infrastructure/`)
-
-`ProductRepositoryAdapter`가 본보기다. 근데 `Order`는 애그리거트라 세 군데서 걸린다.
-
-- `Order.lines`가 `OrderEntity`엔 없다. `OrderLineEntity`가 `order_id`로 따로 산다
-  → `save(order)` 한 번이 테이블 **두 개**에 써야 한다. `OrderLineJpaRepository`도 필요하고,
-  FK가 걸려 있으니 저장 **순서**가 있다
-- 타입이 안 맞는다: `OrderStatus` enum ↔ `String`, `placedAt` ↔ `created_at`,
-  `OrderEntity.version`은 도메인에 없다 (2단계에서 `@Version`이 붙을 자리)
-- `OrderLineEntity.id`가 `@GeneratedValue`인데 생성자 파라미터다. 새로 만들 때 뭘 넣나?
-
-여기까지 되면 앱이 뜬다.
-
-**3. 재고** — 1단계의 본 목적
-
-- `domain/Inventory.kt` — `productId`, `total`, `reserved` + "이만큼 더 잡을 수 있나" 판단
-- `domain/InventoryRepository.kt` — 지금 빈 인터페이스다
-- `infrastructure/InventoryRepositoryAdapter.kt`
-- `place()`에 재고 검사·차감 추가 → 실패면 `OrderError.OutOfStock`
-
-**여기서 락을 걸지 않는다.** 읽기와 쓰기를 별도 메서드로 두어 그 사이가 벌어지게 둔다.
-그 틈이 오버셀이 재현되는 통로이고, 1단계는 그걸 관측하는 게 목적이다.
-(조건부 UPDATE 한 방으로 하면 DB가 막아버려서 관측할 게 없어진다)
-
-**4. 컨트롤러 마무리**
-
-- `place()`의 `onFailure`가 지금 `IllegalStateException`을 던진다. 도메인 실패를 예외로
-  바꾸는 건 `DomainResult`를 만든 이유를 정면으로 되돌리는 것이다. 그리고 모든 에러가
-  같은 응답이 된다 — 재고 부족과 없는 상품이 구분되지 않는다
-- 상태 코드 기준: **클라이언트가 요청을 고치면 성공하나 → 4xx, 아니면 5xx**
-  - `ProductNotFound` 404 / `InvalidQuantity`·`EmptyOrder` 400 / `InvalidStatusTransition` 409
-  - `OutOfStock`은 409냐 422냐 — **내 결정**. 고르고 이유 한 줄 남길 것
-  - `ConflictExhausted`는 409 (2단계 테스트가 명시)
-- 실패 본문은 `ProblemDetail` (RFC 9457). `ResponseEntity<*>`는 구체 타입으로
-  (star projection이면 springdoc이 스키마를 못 만들고 프론트 `gen:api`가 깨진다)
-- `getOrder` / `confirmOrder`는 아직 `TODO()`
-- `ProductController.getProducts()` 빈 몸통
-- `OrderWebDto.kt`는 빈 클래스뿐 — `PlaceOrder`를 그대로 쓸 거면 삭제
-
-**5. `DevController.reset` 본문** — 지금 빈 몸통
-
-`{"productId":"p-sneaker","total":50}`을 받아서:
-- `products`에 상품이 있게 한다 (없으면 `inventories`가 FK 때문에 안 들어간다)
-- `inventories`를 `total=50, reserved=0`으로
-- 이전 테스트가 남긴 주문·라인을 치운다
-
-**6. 오버셀 관측하고 기록**
+**1. k6로 TPS / p95 / p99 재기** ← 여기부터
 
 ```bash
-./gradlew :bootstrap:test --tests '*ConcurrentOrderIntegrationTest*'   # 실패해야 정상
+docker compose -f infra/docker-compose.yml up -d
+cd backend && ./gradlew :bootstrap:bootRun --args='--spring.profiles.active=dev'
+# 다른 터미널
 docker run --rm -i --network host grafana/k6 run - < infra/k6/order-concurrent.js
 ```
-- 실패 메시지의 `성공 건수 - 50`이 오버셀 건수다 → M1 §8 표 1행에 기록
-- **여기서 멈추고 리뷰 요청.** 2단계로 바로 넘어가지 않는다
+
+`http_req_duration`의 `p(95)`/`p(99)`와 `iterations`의 `/s`를 §8 표 1행에 적는다.
+
+주의: `teardown`이 `GET /api/products`를 부르는데 그 엔드포인트가 없다.
+`[최종 재고 조회 실패]` 로그만 찍히고 측정 자체는 정상이다. 만들거나 무시하거나.
+
+**2. 통합 테스트를 두세 번 더 돌려 `DB reserved`가 흔들리는 범위 보기**
+
+21은 한 번의 값일 뿐이다. **매번 다르다는 것 자체가 관측 결과다.**
+
+**3. 리뷰 요청 후 2단계 진입 판단**
+
+**4. M1 §13-1의 "2단계 전에 정리할 빚" 처리**
+
+락을 넣는 순간 문제가 되는 것들이다. 목록은 M1 문서에 있다.
+
+**5. ADR 4건** — 0002(마이그레이션) / 0004(만료 방식) / 0005(도메인 실패 표현) / 0006(도메인·영속성 분리)
 
 ### 미해결 지적 (리뷰에서 나온 것)
 
+전부 M1 §13-1로 옮겼다. 1단계 관측을 막지는 않지만 2단계 전에 정리해야 한다.
+
 | 심각도 | 위치 | 내용 |
 |---|---|---|
-| 치명 | `OrderPlacementService` 상품 조회 | 못 찾은 라인을 건너뛴다 → 위 1번 |
-| 치명 | `OrderController.place` | 도메인 실패를 예외로 던진다 → 위 4번 |
-| 중요 | `domain/Product.kt` | `id`에 `UUID.randomUUID()` 기본값. DB에서 읽어 채우는 값인데 기본값이 있으면 존재하지 않는 상품 id가 조용히 생긴다 |
-| 중요 | `domain/Product.kt` | `active`가 없다. DDL 주석이 "비활성 상품으로 새 주문을 만들 수 없다는 규칙은 도메인이 강제한다"고 선언했는데 그 규칙이 들어갈 자리가 없다. 없는 상품과 팔지 않는 상품은 같은 실패인가? |
-| 중요 | `OrderPlacementService` | `Instant.now()`를 서비스가 직접 부른다. 도메인에서 시간을 뺀 이유가 뭐였나? "10:00에 주문하면 updatedAt이 그 시각"을 테스트로 고정할 수 있나? |
-| 중요 | `ProblemDetailAdvice` | 모든 `RuntimeException`을 400으로 바꾼다. NPE도 DB 커넥션 고갈도 400이 된다 → 통합 테스트의 `서버오류 == 0`이 버그가 있어도 통과한다 |
-| 사소 | `OrderPlacementService` | `products.find{}`가 라인마다 리스트를 훑는다. `associateBy` |
-| 사소 | `PlaceOrder.reservations = emptyList()` | 3단계 전까지는 거짓말이다. `// TODO 3단계` 남길 것 |
-| 사소 | 여러 파일 | 파일 끝 개행 없음 (`\ No newline at end of file`) |
-
-### 관측할 때 기억해둘 것 (지금 고치지 말 것)
-
-`OrderEntity`의 `@Id`가 애플리케이션이 만든 문자열이라, Spring Data `save()`가
-"새 것인지 기존 것인지" 몰라 **SELECT를 먼저 날린 뒤 INSERT**한다.
-1단계 부하 테스트에서 쿼리 수를 보면 이게 보인다.
+| 중요 | `OrderPlacementService` | `Instant.now()` 직접 호출. 3단계 만료 테스트에서 시점을 고정할 수 없다 |
+| 중요 | `domain/Product.kt` | `active` 없음. DDL 주석이 "도메인이 강제한다"고 선언한 규칙이 들어갈 자리가 없다 |
+| 중요 | `domain/Product.kt` | `id`에 `UUID.randomUUID()` 기본값. DB에서 읽는 값에 기본값이 필요한가 |
+| 중요 | `OrderRepositoryAdapter.save` | 직접 채운 `@Id` → Spring Data가 `merge()` → INSERT 앞에 SELECT가 한 번 더 |
+| 중요 | `OrderLineRepository` | `JpaRepository<_, String>`인데 `@Id`는 `Long?` |
+| 중요 | `InventoryEntity.version` | `@Version`이 없다. 지금은 그냥 정수 컬럼 |
+| 중요 | `InventoryRepository.findByProductId` | 재고 행이 없으면 `IllegalArgumentException` → 500 |
+| 사소 | `PlaceOrder.reservations` | 3단계 전까지 `emptyList()`. TODO 주석은 달아둠 |
+| 사소 | 여러 파일 | 파일 끝 개행 없음 |
 
 ### Claude가 할 일
 
-- 위 작업 리뷰
-- `domain`/`application`에 클래스가 채워지면 ArchUnit 규칙의 `allowEmptyShould(true)` 제거
-- 오버셀 수치 해석, 2단계 진입 판단
+- k6 수치 해석, 2단계 진입 판단
+- `domain`/`application`에 클래스가 찼으니 ArchUnit의 `allowEmptyShould(true)` 제거 — **아직 안 함**
 - 프론트엔드는 2단계 통과 후
 
 ### 확정된 설계 결정
@@ -155,20 +198,26 @@ docker run --rm -i --network host grafana/k6 run - < infra/k6/order-concurrent.j
 - **모듈 경계와 FK**: 같은 모듈 안이면 FK 걸고 JOIN한다(`products`). 경계를 넘으면 값으로만
   들고 있는다(`orders.account_id` — `accounts`는 payment 스키마). M4 물리 분리를 위해서다
 - **가격 스냅샷**: `order_lines.unit_amount`에 주문 시점 단가를 복사해 박는다.
-  정규화를 깨는 대신 가격 이력 정확성을 얻는다. 참조로 두면 상품 가격을 올리는 순간
-  과거 주문 금액까지 바뀐다
+  정규화를 깨는 대신 가격 이력 정확성을 얻는다
 - **포트는 사실만 반환한다**: 그 사실이 실패인지는 application이 정한다.
   저장 실패는 도메인 실패가 아니라 사고 → 예외. `DomainResult`를 포트에 씌우지 않는다
-- **`DomainResult`는 껍질째 위로 올라간다**: 벗기는 곳은 HTTP로 바꾸는 컨트롤러의 `fold` 한 군데.
-  중간에서 `getOrNull()`을 부르고 싶어지면 잘못 가고 있는 것
+- **`DomainResult`는 껍질째 위로 올라간다**: 벗기는 곳은 컨트롤러의 `fold` 한 군데
+- **HTTP 실패 매핑** (2026-08-23): 경계에서도 예외로 되돌리지 않는다.
+  `OrderError` → RFC 9457 `ProblemDetail`을 **값으로** 옮긴다. 표는 `OrderProblems.kt`.
+  **400과 409를 가르는 기준은 "다시 시도해서 달라질 여지가 있는가"다.**
+  컨트롤러 반환 타입은 `ResponseEntity<Any>` + `@ApiResponses` — 추론은 어차피 201도 못 맞춘다 (M1 §4-2)
+- **예외는 "일어나면 버그인 것"에만**: `Inventory.addReserved`의 음수 검사가 그 예.
+  재고 부족은 매일 일어나는 정상 상황이라 값으로 돌려준다
 - ADR-0002 / 0004 / 0005 / 0006 작성 대기 — **사용자 몫**
 
 ### 환경 메모
 
 - Gradle 9.3.0 / Kotlin 2.2.21 / Java 21 (`JAVA_HOME=~/.sdkman/candidates/java/current`)
-- 인프라: `docker compose -f infra/docker-compose.yml up -d`
+- 인프라: `docker compose -f infra/docker-compose.yml up -d` (Docker가 꺼져 있으면 `open -a OrbStack`)
+- Testcontainers가 Docker를 못 찾으면 테스트가 "환경 문제"로 실패한다. 코드 문제와 헷갈리지 말 것
 - 마이그레이션을 고쳤으면 `down -v` 후 재기동. `public.flyway_schema_history`가 남으면 체크섬이 어긋난다
 - DB에 psql로 직접 DDL을 넣지 말 것. Flyway 이력과 어긋나 `relation already exists`가 난다
+- Kotlin 프로젝트에서 `@RequestBody`가 400이면 `jackson-module-kotlin`부터 의심할 것
 - 남은 부채: CI의 `actions/checkout@v4`·`setup-node@v4`가 Node 20 타깃이라 경고
 
 ---
@@ -185,11 +234,12 @@ docker run --rm -i --network host grafana/k6 run - < infra/k6/order-concurrent.j
 
 ### M1 — 주문 코어와 동시성 제어 (사용자 구현) — [작업지시서](./milestones/M1-order-core.md)
 - [x] 설계문서 작성 (Claude) — [M1-order-core.md](./milestones/M1-order-core.md)
-- [ ] 1단계: 락 없이 구현 → 오버셀 관측 — DDL·시그니처·도메인·Product 어댑터 완료. Order 어댑터·재고·컨트롤러가 남았다
+- [ ] 1단계: 락 없이 구현 → 오버셀 관측 — **구현 완료, 오버셀 관측 완료** (재고 50 / 동시 100 → 성공 100, 오버셀 50, DB reserved 21). k6 수치만 남았다
 - [ ] 2단계: 낙관적 락 + 재시도 정책
 - [ ] 3단계: 선점(HELD) + TTL, 만료/확정 경쟁 조건 처리
 - [ ] 프론트: 상품 목록 / 주문 / 실시간 재고 (Claude)
-- [ ] ADR 2건 이상 (사용자) — ADR-0002 마이그레이션 도구, ADR-0004 만료 구동 방식
+- [ ] ADR 2건 이상 (사용자) — ADR-0002 마이그레이션 도구, ADR-0004 만료 구동 방식,
+      ADR-0005 도메인 실패 표현, ADR-0006 도메인·영속성 분리
 - [ ] 회고
 
 ### M2 — 결제 원장과 멱등성 (사용자 구현)
@@ -207,4 +257,10 @@ docker run --rm -i --network host grafana/k6 run - < infra/k6/order-concurrent.j
 
 | 개념 | 마일스톤 | 한 줄 요약 |
 |---|---|---|
-| | | |
+| 갱신 손실 (lost update) | M1 | `SET x = 읽은값 + 1`은 그 사이 남이 쓴 값을 덮어쓴다. 오버셀보다 고약하다 — 판 사실 자체가 장부에서 사라진다 |
+| 실패를 값으로 vs 예외로 | M1 | "일어나면 버그"는 예외, "알려줘야 할 일"은 값. 스프링은 예외만 보고 롤백하므로, 값으로 돌려주면 실패해도 커밋된다 |
+| RFC 9457 Problem Details | M1 | 에러 응답의 표준 형식. `type`은 분류(기계용), `detail`은 이번 건(사람용). 클라이언트가 `detail`을 파싱하면 설계 실패 |
+| 400 vs 409 | M1 | "다시 시도해서 달라질 여지가 있는가". 400은 요청 자체가 틀린 것, 409는 지금 자원 상태와 충돌한 것 |
+| 예외 핸들러의 범위 | M1 | 넓게 잡으면 계측기가 고장난다. `RuntimeException`을 400으로 바꾸자 5xx 그래프가 평평해지고 테스트가 영원히 통과했다 |
+
+_나머지는 마일스톤을 마칠 때마다 사용자가 채운다._

@@ -11,7 +11,7 @@ import jakarta.persistence.Table
 class OrderLineEntity(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    var id: Long,
+    var id: Long?,
     var orderId: String,
     var productId: String,
     var quantity: Int,

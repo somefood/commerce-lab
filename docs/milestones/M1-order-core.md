@@ -271,6 +271,157 @@ M1 후반부에서 더 분명해진다. 3단계의 선점 확정은 조건부 UP
 
 ---
 
+## 4-2. 도메인 실패를 HTTP로 옮기는 방법 (2026-08-23 결정)
+
+### 문제
+
+`place()`는 실패를 예외가 아니라 `DomainResult.Failure<OrderError>`로 돌려준다(§4-1, ADR-0005 후보).
+그런데 HTTP는 상태 코드로 말한다. 어디선가 `OrderError` → 상태 코드 변환이 일어나야 한다.
+
+처음 구현은 컨트롤러에서 `throw IllegalStateException(...)`을 했다. 그러면 값으로 돌려받은 실패가
+경계에서 다시 예외가 되고, `DomainResult`를 도입한 의미가 사라진다. 그리고 실제로 재고 부족이
+**500**으로 나갔다 — 통합 테스트의 `서버오류 == 0` 단언이 잡아야 할 바로 그 상황이다.
+
+### 결정
+
+**컨트롤러가 `when`으로 매핑하고, 예외를 쓰지 않는다.** 표는 `bootstrap/web/order/OrderProblems.kt`에 있다.
+
+| OrderError | 상태 | `type` | 근거 |
+|---|---|---|---|
+| `OutOfStock` | 409 | `out-of-stock` | 반품·입고·선점 만료로 달라질 수 있다 |
+| `ConflictExhausted` | 409 | `conflict-exhausted` | 재시도하면 될 수 있다 |
+| `ReservationAlreadySettled` | 409 | `reservation-already-settled` | 자원의 현재 상태와 충돌 |
+| `InvalidStatusTransition` | 409 | `invalid-status-transition` | 상태가 바뀌면 가능해진다 |
+| `ProductNotFound` | 404 | `product-not-found` | 자원이 없다 |
+| `OrderNotFound` | 404 | `order-not-found` | 자원이 없다 |
+| `InvalidQuantity` | 400 | `invalid-quantity` | 그대로 다시 보내도 똑같이 실패한다 |
+| `EmptyOrder` | 400 | `empty-order` | 위와 같다 |
+
+**400과 409를 가르는 기준은 "다시 시도해서 달라질 여지가 있는가"다.**
+400은 요청 자체가 틀린 것이라 서버 상태와 무관하고, 409는 지금의 자원 상태와 충돌한 것이라
+시간이 지나면 결과가 달라질 수 있다. 클라이언트의 재시도 정책이 이 구분에 달려 있다.
+
+응답 본문은 RFC 9457 Problem Details(`application/problem+json`)다.
+
+```json
+{
+  "type": "https://commerce-lab.dev/problems/out-of-stock",
+  "title": "재고 부족",
+  "status": 409,
+  "detail": "요청 수량 1개, 주문 가능 수량 0개입니다.",
+  "instance": "/api/orders",
+  "productId": "p-sneaker", "requested": 1, "available": 0
+}
+```
+
+`detail`은 사람이 읽는 문장이고, 기계가 분기할 값은 `type`과 확장 필드에 넣는다.
+클라이언트가 `detail.includes("재고")` 같은 걸 하기 시작하면 설계가 실패한 것이다.
+
+### 컨트롤러 반환 타입: `ResponseEntity<Any>` + `@ApiResponses`
+
+성공은 `PlaceOrder`, 실패는 `ProblemDetail`이라 한 타입으로 좁힐 수 없다.
+그러면 springdoc이 스키마를 추론하지 못한다 — 실제로 `{"type":"object"}`가 나온다.
+
+버린 대안은 **`ResponseEntity<PlaceOrder>`를 유지하고 실패는 `ErrorResponseException`으로 던지기**였다.
+성공 스키마가 자동으로 나오는 게 장점이다. 버린 이유는 두 가지다.
+
+1. **추론은 어차피 틀린다.** 실측해보니 `ResponseEntity<PlaceOrder>`로 둬도 명세에는 `200`으로 적힌다.
+   springdoc은 반환 *타입*만 보고 메서드 안의 `.created(...)`를 모른다. 실패 응답은 아예 안 나온다.
+   명세를 맞추려면 어느 쪽이든 `@ApiResponses`를 손으로 적어야 한다.
+2. **예상된 실패를 예외로 되돌리는 것**이 이 마일스톤의 결정과 정면으로 부딪힌다.
+
+포기한 것: 애노테이션이 장황하고, `when`에 분기를 추가하고 `@ApiResponse`를 안 늘리면
+**명세가 조용히 거짓말을 한다.** `when`의 exhaustive 검사와 달리 컴파일러가 잡아주지 않는다.
+(계약 검증 테스트로 막을 수 있다. M1 범위 밖.)
+
+### 예외는 어디에 남았나
+
+`ProblemDetailAdvice`는 **예상하지 못한 예외만** 500으로 내보낸다. 도메인 에러 매핑은 여기 없다.
+
+이전 구현은 `@ExceptionHandler(RuntimeException::class)`로 모든 런타임 예외를 400으로 바꿨다.
+`NullPointerException`도 커넥션 풀 고갈도 전부 "클라이언트가 잘못 보냈다"가 됐고,
+5xx 그래프는 평평했고, **`서버오류 == 0` 단언은 영원히 통과했다.** 계측기가 고장 난 채로 초록불이었다.
+
+규칙: **잡을 예외는 좁게 지정한다. 안 잡힌 것이 500으로 나가는 건 정상 동작이다.**
+500은 "우리가 예상 못 한 일이 일어났다"는 유일한 신호다.
+
+`detail`에 `ex.message`를 넣지 않는다 — 테이블명·쿼리·경로가 새어 나간다.
+클라이언트에겐 "실패했다"만 알리고 원인은 로그에 남긴다. 둘을 잇는 것은 추적 ID의 몫이다(M5).
+
+### ⚠ 다시 이야기할 것 — 이게 보편적인 방식인가 (2026-08-23, 미결)
+
+**결론이 나지 않았다. 다음 세션에서 이어서 이야기한다.**
+
+위 결정은 "예상된 실패를 예외로 만들지 않는다"를 경계까지 일관되게 지킨 결과다.
+그런데 **Spring 진영의 주류는 예외 기반이다.** 이 점을 사용자가 물었고, 사실이다.
+
+#### (가) 지금 방식 — 값으로 옮긴다
+
+```kotlin
+fun place(...): ResponseEntity<Any> =
+    orderPlacement.place(command).fold(
+        onSuccess = { ResponseEntity.created(...).body(it) },
+        onFailure = { it.toResponse() },
+    )
+```
+
+- `DomainResult`를 도입한 결정과 일관된다. 예외가 제어 흐름에 끼지 않는다
+- 컨트롤러를 읽으면 이 API가 낼 수 있는 응답이 전부 보인다
+- 반환 타입이 `Any`라 springdoc이 추론하지 못한다 → 엔드포인트마다 `@ApiResponses`
+- 실제로 이 모양을 쓰는 곳: Kotlin + Arrow `Either`를 쓰는 팀, 함수형 지향 코드베이스
+
+#### (나) 예외 기반 — Spring의 주류
+
+```kotlin
+fun place(...): ResponseEntity<PlaceOrder> =
+    orderPlacement.place(command).fold(
+        onSuccess = { ResponseEntity.created(...).body(it) },
+        onFailure = { throw it.toErrorResponseException() },
+    )
+```
+
+- Spring 6이 `ErrorResponse` / `ErrorResponseException`을 추가한 것이 이 방향이다.
+  프레임워크가 미는 길이다
+- **springdoc은 `@RestControllerAdvice` 핸들러의 `@ApiResponse`를 전역으로 적용한다.**
+  에러 응답을 어드바이스에 한 번만 적으면 모든 엔드포인트 명세에 붙는다 —
+  (가)의 "애노테이션이 장황하다"는 단점이 상당 부분 사라진다
+- 대신 값으로 돌려받은 실패를 경계에서 다시 예외로 되돌린다.
+  도메인·애플리케이션만 깨끗하고 실제 제어 흐름은 예외로 흐른다
+
+#### 되돌리는 비용
+
+작다. 서비스와 도메인은 그대로 두고 **컨트롤러만** 바꾸면 된다.
+`OrderProblems.kt`의 매핑표(상태 코드 · type · 확장 필드)는 거의 그대로 재사용된다.
+`ResponseEntity<Any>` 대신 `ErrorResponseException`을 만들어 던지고,
+어드바이스에 `@ApiResponse`를 한 번 적으면 끝이다.
+
+#### 다음 세션에서 확인할 것
+
+1. `@RestControllerAdvice` + `@ApiResponse`가 정말 전역으로 붙는지 **실측**한다
+   (지금까지 이 프로젝트에서 추론에 의존한 판단은 여러 번 틀렸다)
+2. (나)로 갈 때 `ErrorResponseException`이 `ProblemDetailAdvice`의
+   `@ExceptionHandler(Exception::class)`에 먼저 잡히지 않는지 확인한다
+   (부모 `ResponseEntityExceptionHandler`가 더 구체적인 핸들러를 갖고 있어 이길 것으로 보이나, 실측 필요)
+3. 어느 쪽이든 **ADR-0005에 결정과 근거를 남긴다.** 두 방식을 다 본 상태이므로
+   "관례를 몰라서"가 아니라 "알고도 이렇게 했다"를 쓸 수 있다
+
+### 실패를 값으로 돌려주는 것과 트랜잭션
+
+**스프링은 예외를 보고 롤백을 결정한다. 반환값은 보지 않는다.**
+
+`DomainResult.failure`를 `return` 하는 것은 정상 종료다. 트랜잭션은 그대로 커밋된다.
+주문을 저장한 뒤 재고 부족으로 실패를 반환하면, 실패했다고 응답해놓고 `orders` 행은 남는다.
+(실측: 성공 1건인데 `orders=2`)
+
+`OrderPlacementService.place()`를 **읽기·계산 구간**과 **쓰기 구간**으로 나눠 해결했다.
+모든 검증이 쓰기 전에 끝나므로 되돌릴 것이 없다.
+버린 대안은 `TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()`다 —
+스프링 내부 API가 애플리케이션 서비스에 들어오고, 애초에 쓰지 않으면 되돌릴 필요도 없다.
+
+**이 함정은 `DomainResult`를 도입한 순간 예약돼 있었다.** 실패를 값으로 표현하기로 하면
+"실패했는데 커밋된다"를 어디선가 다뤄야 한다. 면접에서 나올 만한 지점이다.
+
+
 ## 5. 실패하는 테스트 — 실행 가능한 스펙
 
 Claude가 제공하는 스펙이다. 구현 전에는 전부 실패한다.
@@ -503,12 +654,26 @@ docker run --rm -i --network host grafana/k6 run -e SCENARIO=throughput - < infr
 시나리오는 `POST /api/dev/reset`, `POST /api/orders`, `GET /api/products`를 호출한다.
 §4.3의 계약과 다르게 구현했다면 이 파일도 같이 고쳐야 한다.
 
-| 단계 | 성공 주문 | 오버셀 | TPS | p95 | p99 | 실패율 | 재시도/충돌 |
-|---|---|---|---|---|---|---|---|
-| 1 — 락 없음 | | | | | | | — |
-| 2 — 낙관적 락 | | 0 | | | | | |
-| 2b — 비관적 락(선택) | | 0 | | | | | — |
-| 3 — 선점 + TTL | | 0 | | | | | |
+| 단계 | 성공 주문 | 오버셀 | DB reserved | TPS | p95 | p99 | 실패율 | 재시도/충돌 |
+|---|-------|-----|-------------|-----|-----|-----|-----|---|
+| 1 — 락 없음 | 100    | 50  | 21          | ?   | ?   | ?   | 0%  | — |
+| 2 — 낙관적 락 |       | 0   | =성공 주문      |     |     |     |     | |
+| 2b — 비관적 락(선택) |       | 0   | =성공 주문      |     |     |     |     | — |
+| 3 — 선점 + TTL |       | 0   | =성공 주문      |     |     |     |     | |
+
+`DB reserved` 컬럼은 나중에 추가했다. 처음 표에는 없었는데, 1단계를 실제로 관측해보니
+락 없는 read-modify-write가 **두 가지 서로 다른 고장**을 동시에 일으켰기 때문이다.
+
+- **오버셀** — 낡은 값을 읽고 검사해서 통과시킨다. 재고 50에 100건이 팔린다.
+- **갱신 손실(lost update)** — `SET reserved = 읽은값 + 1`이 그 사이 남이 쓴 값을 덮어쓴다.
+  100건을 팔았는데 `reserved`에는 21로 적힌다. 판 사실 자체가 사라진다.
+
+성공 주문 수만 적으면 두 번째가 표에서 안 보인다. 오버셀보다 이쪽이 고약하다 —
+오버셀은 "많이 팔렸다"고 나오기라도 하지만, 갱신 손실은 장부에서 증발한다.
+정상이라면 `DB reserved == 성공 주문 수`여야 한다. 그 등식이 깨진 폭이 손실량이다.
+
+`DB reserved` 값은 돌릴 때마다 다르다. 타이밍에 달렸으므로 그게 정상이고,
+**매번 다르다는 것 자체가 관측 결과다.** 두세 번 돌려 흔들리는 범위를 적어둘 것.
 
 이 표가 채워지면 면접에서 이렇게 말할 수 있다:
 "락 없이는 100요청 중 N건이 오버셀됐고, 낙관적 락으로 0건이 됐지만 TPS가 X% 떨어졌습니다.
@@ -701,23 +866,65 @@ UPDATE "order".reservations
   - 상태 전이는 `else` 없는 `when(status)`. `OrderStatus`에 값이 추가되면 컴파일이 깨진다
   - `updatedAt` 스펙 5건을 별도로 고정했다 (§5.1)
 
-- [ ] **4. 락 없이 구현 + REST 어댑터** ← **지금 여기**
-  - 재고를 조회하고, 검사하고, UPDATE한다. **락을 걸지 않는다** (일부러)
-  - bootstrap에 §4.3의 엔드포인트 5개. `/api/dev/reset`은 `dev` 프로필에만
-  - 주의: `@Transactional`은 order-core에만. bootstrap에 붙이면 ArchUnit이 빌드를 깬다
-  - **완료 판정:** `curl -X POST localhost:8080/api/orders -H 'Content-Type: application/json' -d '{"accountId":"a1","lines":[{"productId":"p-sneaker","quantity":1}]}'` 가 주문을 만든다
+- [x] ~~**4. 락 없이 구현 + REST 어댑터**~~ — 완료 (2026-08-23). 주문 생성 경로가 끝까지 흐른다
+  - 포트·어댑터: `Product` / `Order` / `Inventory` 3쌍, 모두 `domain`에 포트 · `infrastructure`에 어댑터
+  - 실패 응답: `OrderError` → RFC 9457 `ProblemDetail`. 표는 `bootstrap/web/order/OrderProblems.kt`
+  - 실측 결과 (재고 1, 순차 5요청):
+    ```
+    성공        201  Location + PlaceOrder 본문
+    재고부족    409  type=out-of-stock      (productId/requested/available 확장 필드)
+    상품없음    404  type=product-not-found
+    잘못된수량  400  type=invalid-quantity
+    빈주문      400  type=empty-order
+    DB: orders=1  order_lines=1  reserved=1   ← 실패한 4건은 아무것도 쓰지 않았다
+    ```
 
-- [ ] **5. 오버셀 관측하고 기록**
+- [ ] **5. 오버셀 관측하고 기록** ← **지금 여기** (절반 완료)
   ```bash
   ./gradlew :bootstrap:test --tests '*ConcurrentOrderIntegrationTest*'   # 실패해야 정상
   docker run --rm -i --network host grafana/k6 run - < infra/k6/order-concurrent.js
   ```
-  - k6 출력 마지막 줄 `[오버셀] N건`을 §8 표 1행에 적는다
-  - Grafana(http://localhost:3001 → M1 대시보드)에서 p99와 커넥션 대기도 같이 본다
-  - **완료 판정:** §8 표의 "1 — 락 없음" 행이 채워짐
+  - [x] 통합 테스트로 `성공 주문` / `오버셀` / `DB reserved` / `실패율` 기록 완료 (§8 표 1행)
+  - [ ] k6로 `TPS` / `p95` / `p99` 측정 — **남음**
+  - [ ] Grafana(http://localhost:3001 → M1 대시보드)에서 p99와 커넥션 대기도 같이 본다
+  - 주의: k6의 `teardown`이 `GET /api/products`로 최종 재고를 확인하는데 그 엔드포인트가 아직 없다.
+    `[최종 재고 조회 실패]` 로그만 찍히고 부하 측정 자체는 정상으로 돈다. 만들거나, 무시하거나.
+  - **완료 판정:** §8 표의 "1 — 락 없음" 행이 전부 채워짐
 
-- [ ] **6. 여기서 멈추고 리뷰 요청**
+- [ ] **6. 2단계 전에 정리할 빚** (§13-1에 목록)
+  - 1단계 관측을 막지는 않지만, 락을 넣으면 바로 문제가 되는 것들이다
+
+- [ ] **7. 여기서 멈추고 리뷰 요청**
   - 2단계로 바로 넘어가지 않는다. 관측 결과를 놓고 이야기한 뒤 넘어간다
+
+### 13-1. 2단계 전에 정리할 빚
+
+1단계 관측은 이대로 가능하다. 아래는 **락을 넣는 순간** 문제가 되는 것들이다.
+
+- [ ] **`Clock` 주입** — `OrderPlacementService`가 `Instant.now()`를 직접 부른다
+  - 3단계 만료 테스트에서 "만료 3초 전" 같은 시점을 만들 수 없다
+  - `Clock` 빈을 등록하고 `Instant.now(clock)`으로. 나중에 하면 시그니처가 전부 흔들린다
+
+- [ ] **`Product.active`** — DDL 주석에 "비활성 상품 주문 금지는 도메인이 강제한다"고 적었는데
+  도메인이 `active`를 모른다. `Product`에 필드 추가 + 어댑터 매핑 + 검증 위치 결정
+
+- [ ] **`Product.id`의 기본값** — `UUID.randomUUID()`가 기본값으로 붙어 있다
+  DB에서 읽어오는 값에 기본값이 필요한 상황이 있나? id를 빠뜨려도 컴파일이 통과한다
+
+- [ ] **`OrderRepositoryAdapter.save`의 SELECT** — `OrderEntity`의 `@Id`는 직접 채운 String이다
+  Spring Data는 id가 null이 아니면 `merge()`를 부르고, merge는 INSERT 앞에 SELECT를 한 번 더 낸다
+  주문 한 건마다 붙는다. 2단계 TPS를 재기 전에 정리하는 게 낫다
+  (`show-sql`을 켜고 주문 한 건을 넣어보면 바로 보인다. `Persistable` 구현이 흔한 해법)
+
+- [ ] **`OrderLineRepository`의 ID 타입** — `JpaRepository<OrderLineEntity, String>`인데
+  `OrderLineEntity.id`는 `Long?`이다. `saveAll`은 ID 타입을 안 써서 지금은 안 터진다
+
+- [ ] **`InventoryEntity.version`** — `@Version`이 없다. 지금은 그냥 정수 컬럼이다
+  2단계 낙관적 락에서 이 컬럼을 쓸 것인지, 조건부 UPDATE로 갈 것인지 결정할 것
+  (`OrderRepositoryAdapter`가 `version = 1`을 하드코딩하고 있는 것도 같이 본다)
+
+- [ ] **`InventoryRepository.findByProductId`의 실패** — 재고 행이 없으면 `IllegalArgumentException`을 던진다
+  그러면 500이 나간다. 도메인 실패로 다룰 것인지, 있을 수 없는 일로 볼 것인지
 
 ### 그 다음 (지금 안 해도 됨)
 
@@ -729,6 +936,10 @@ UPDATE "order".reservations
 
 - [ ] **ADR-0002 작성** — 마이그레이션 도구. 합의 끝났고 기록만 남았다 (§2)
 - [ ] **ADR-0004 작성** — 선점 만료 구동 방식. 합의 끝남 (§11)
+- [ ] **ADR-0005 작성** — 도메인 실패 표현. `DomainResult`를 쓰고 예외를 쓰지 않기로 한 이유
+  - 함께 정한 것: 경계에서도 예외로 되돌리지 않는다. `OrderError` → `ProblemDetail`을 값으로 옮긴다
+  - 예외를 남겨둔 자리도 적을 것 — "일어나면 버그인 것"만 예외다 (`Inventory.addReserved`의 음수 검사)
+- [ ] **ADR-0006 작성** — 도메인 모델과 영속성 모델 분리 (§4-1)
   - `docs/adr/0001-modular-monolith.md`가 형식 예시다
   - 내 설명을 그대로 옮기지 말고 내 언어로 다시 쓸 것. 그게 면접 답변의 원본이 된다
 

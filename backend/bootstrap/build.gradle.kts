@@ -11,6 +11,13 @@ dependencies {
     implementation(project(":modules:contract"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
+    // Kotlin은 생성자 파라미터 이름을 바이트코드에 남기지 않는다(-java-parameters 없이는
+    // MethodParameters 속성이 안 붙는다). 그래서 Boot가 기본 등록하는
+    // jackson-module-parameter-names만으로는 data class를 역직렬화할 수 없고,
+    // @RequestBody가 400 "no Creators, like default constructor, exist"로 끝난다.
+    // 이 모듈이 Kotlin 메타데이터를 읽어 주 생성자를 Creator로 인식시키고,
+    // 파라미터 기본값과 non-null 검사도 함께 살려준다.
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation(libs.springdoc.openapi.webmvc)
