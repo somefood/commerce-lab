@@ -72,6 +72,26 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `order-api는 어떤 프레임워크도 알지 못한다`() {
+        // order-api는 다른 모듈이 order를 부를 때 보는 유일한 면이다.
+        // 여기에 스프링이 들어오면 그 의존이 호출하는 쪽으로 전염되고, M4 물리 분리가 죽는다.
+        //
+        // 이 규칙은 2026-08-24에 추가했다. 도메인 실패를 DomainResult에서 예외로 바꾸면서
+        // OrderException을 스프링의 ErrorResponseException으로 상속시키는 선택지가 있었다.
+        // 그러면 springdoc과 상태 코드 처리가 공짜로 따라오지만, 그 대가로 order-api가
+        // 스프링 웹에 묶인다. 유혹이 실재하는 자리이므로 규칙으로 못 박는다.
+        noClasses()
+            .that().resideInAPackage("com.commercelab.order.api..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "org.springframework..",
+                "jakarta..",
+                "com.fasterxml.jackson..",
+            )
+            .because("모듈의 공개 면에 프레임워크가 새면 호출하는 쪽까지 전염된다. M4에서 떼어낼 수 없다")
+            .check(classes)
+    }
+
+    @Test
     fun `order 도메인은 영속성 기술을 알지 못한다`() {
         // 도메인 모델과 JPA 엔티티를 분리하기로 한 결정(M1 §4-1)을 강제한다.
         // 매핑이 귀찮다고 도메인 클래스에 @Entity를 붙이는 순간 빌드가 깨진다.
@@ -88,8 +108,6 @@ class ArchitectureTest {
                 "org.hibernate..",
             )
             .because("도메인은 저장 방식을 몰라야 한다. 영속성 모델은 infrastructure 패키지가 갖는다")
-            // 아직 domain 패키지가 비어 있다. 클래스가 생기면 이 줄을 지운다.
-            .allowEmptyShould(true)
             .check(classes)
     }
 
@@ -103,7 +121,6 @@ class ArchitectureTest {
                 .and().areDeclaredInClassesThat().resideOutsideOfPackage("com.commercelab.order.application..")
                 .should().beAnnotatedWith(annotation)
                 .because("트랜잭션 경계는 애플리케이션 서비스가 소유한다. 도메인도 리포지터리도 열지 않는다")
-                .allowEmptyShould(true)
                 .check(classes)
 
             noClasses()
@@ -111,7 +128,6 @@ class ArchitectureTest {
                 .and().resideOutsideOfPackage("com.commercelab.order.application..")
                 .should().beAnnotatedWith(annotation)
                 .because("트랜잭션 경계는 애플리케이션 서비스가 소유한다. 도메인도 리포지터리도 열지 않는다")
-                .allowEmptyShould(true)
                 .check(classes)
         }
     }

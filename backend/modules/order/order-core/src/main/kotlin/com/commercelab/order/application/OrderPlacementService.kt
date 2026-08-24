@@ -1,11 +1,9 @@
 package com.commercelab.order.application
 
-import com.commercelab.common.DomainResult
-import com.commercelab.order.api.OrderError
+import com.commercelab.order.api.OrderException
 import com.commercelab.order.api.OrderPlacement
 import com.commercelab.order.api.PlaceOrder
 import com.commercelab.order.api.PlaceOrderCommand
-import com.commercelab.order.domain.Inventory
 import com.commercelab.order.domain.InventoryRepository
 import com.commercelab.order.domain.Order
 import com.commercelab.order.domain.OrderLine
@@ -31,39 +29,41 @@ class OrderPlacementService(
 ) : OrderPlacement {
 
     /**
-     * 메서드가 두 구간으로 나뉜다. **읽고 계산하는 구간**과 **쓰는 구간**이다.
+     * ## 이전 버전과 무엇이 다른가 (2026-08-24)
      *
-     * 왜 이렇게 나눴나 — 스프링은 예외를 보고 롤백을 결정한다. 반환값은 보지 않는다.
-     * DomainResult.failure를 return 하는 것은 정상 종료이므로 트랜잭션이 그대로 커밋된다.
-     * 주문을 먼저 저장한 뒤 재고 부족으로 실패를 반환하면, 실패했다고 응답해놓고
-     * orders 행은 남는다. (실제로 그렇게 동작하는 것을 확인했다: 성공 1건인데 orders=2)
+     * 이전에는 이 메서드가 **읽기·계산 구간**과 **쓰기 구간**으로 갈라져 있었다.
+     * 실패를 `DomainResult.failure`로 *반환*했기 때문이다 — 스프링은 예외를 보고
+     * 롤백을 결정하고 반환값은 보지 않으므로, 실패를 반환하면 그때까지 쓴 것이 그대로
+     * 커밋된다. 그래서 "쓰기 전에 모든 검증을 끝낸다"는 규율로 막아야 했다.
      *
-     * 해결책은 두 가지였다.
-     *   (가) 쓰기 전에 모든 검증을 끝낸다        ← 택함
-     *   (나) 실패 시 setRollbackOnly()로 롤백을 지시한다
+     * 실패가 예외가 된 지금은 그 규율이 필요 없다. **아래 순서를 보라 —
+     * 주문을 먼저 저장하고, 그다음에 재고를 검사한다.** 재고가 모자라면
+     * `Inventory.addReserved`가 `OutOfStock`을 던지고, `@Transactional`이
+     * 이미 저장한 orders/order_lines 행까지 함께 되돌린다.
      *
-     * (가)를 택한 이유: 롤백은 "쓴 것을 되돌리는" 비용을 치른다. 애초에 쓰지 않으면
-     * 되돌릴 것도 없다. 그리고 (나)는 TransactionAspectSupport라는 스프링 내부 API를
-     * 애플리케이션 서비스에 들여온다 — 트랜잭션 관리 방식이 도메인 흐름에 새어 나온다.
+     * 이 순서는 실수가 아니라 **이번 전환이 실제로 동작한다는 증거**다.
+     * `OrderRollbackIntegrationTest`가 정확히 이 경로를 검사한다 —
+     * 409를 받았을 때 orders 테이블이 비어 있는지.
+     * 이전 방식이었다면 여기서 주문 행이 남았을 것이다(실측: 성공 1건인데 orders=2).
      *
-     * 대가: 검증 구간에서 만든 계산 결과(reservedInventories)를 들고 있어야 한다.
-     *       라인이 많아지면 메모리에 쌓인다. 주문 한 건의 라인 수는 유한하므로 감수한다.
+     * 버린 대안: `TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()`.
+     * 스프링 내부 API가 애플리케이션 서비스에 들어오고, 예외를 쓰면 애초에 필요가 없다.
+     *
+     * @throws OrderException 예상된 비즈니스 실패. 종류는 [OrderPlacement.place] 참고
      */
     @Transactional
-    override fun place(command: PlaceOrderCommand): DomainResult<OrderError, PlaceOrder> {
-        // ───────── 읽기·계산 구간: 여기서는 아무것도 쓰지 않는다 ─────────
-
+    override fun place(command: PlaceOrderCommand): PlaceOrder {
         // findByIds는 존재하는 것만 돌려준다. 요청한 개수와 다를 수 있다.
         // id로 색인해두면 라인마다 리스트를 훑지 않아도 된다(N번의 O(n) → N번의 O(1)).
         val products = productRepository.findByIds(command.lines.map { it.productId })
             .associateBy { it.id }
 
-        // map은 inline 함수라 람다 안의 return이 place() 자체를 빠져나간다(비지역 반환).
-        // 상품이 없으면 그 라인을 건너뛰지 않는다 — 건너뛰면 사용자가 주문하지 않은 주문이 생기고,
-        // 전부 걸러졌을 때는 원인이 "상품 없음"인데 에러는 EmptyOrder라고 말하게 된다.
+        // 상품이 없으면 그 라인을 건너뛰지 않고 주문 전체를 실패시킨다.
+        // 건너뛰면 사용자가 주문하지 않은 주문이 생기고, 전부 걸러졌을 때는
+        // 원인이 "상품 없음"인데 에러는 EmptyOrder라고 말하게 된다.
         val orderLines = command.lines.map { line ->
             val product = products[line.productId]
-                ?: return DomainResult.failure(OrderError.ProductNotFound(line.productId))
+                ?: throw OrderException.ProductNotFound(line.productId)
             OrderLine(
                 productId = line.productId,
                 quantity = line.quantity,
@@ -71,17 +71,17 @@ class OrderPlacementService(
             )
         }
 
-        val order = when (val placed = Order.place(
+        val order = Order.place(
             orderId = UUID.randomUUID().toString(),
             accountId = command.accountId,
             lines = orderLines,
-            // TODO(3단계): Clock을 주입받아 Instant.now(clock)으로 바꾼다.
-            //  만료 테스트는 "만료 3초 전" 같은 시점을 만들어야 하는데 지금은 고정할 수 없다.
+            // TODO(2단계 전): Clock을 주입받아 Instant.now(clock)으로 바꾼다.
+            //  3단계 만료 테스트는 "만료 3초 전" 같은 시점을 만들어야 하는데 지금은 고정할 수 없다.
             now = Instant.now(),
-        )) {
-            is DomainResult.Failure -> return placed
-            is DomainResult.Success -> placed.value
-        }
+        )
+
+        // 재고 검사보다 먼저 쓴다. 위 KDoc 참고 — 실패하면 롤백된다.
+        orderRepository.save(order)
 
         // 같은 상품이 여러 라인에 나뉘어 들어올 수 있다(예: 같은 상품 2줄).
         // 라인마다 따로 재고를 읽으면 두 번 모두 같은 값을 보고 각자 검사를 통과한다 —
@@ -90,28 +90,17 @@ class OrderPlacementService(
             .groupBy { it.productId }
             .mapValues { (_, lines) -> lines.sumOf { it.quantity } }
 
-        val reservedInventories = mutableListOf<Inventory>()
         requestedByProduct.forEach { (productId, quantity) ->
             val inventory = inventoryRepository.findByProductId(productId)
-            when (val reserved = inventory.addReserved(quantity)) {
-                is DomainResult.Failure -> return reserved
-                is DomainResult.Success -> reservedInventories += reserved.value
-            }
+            inventoryRepository.updateReserveQuantity(inventory.addReserved(quantity))
         }
 
-        // ───────── 쓰기 구간: 여기부터는 실패로 빠져나가지 않는다 ─────────
-
-        orderRepository.save(order)
-        reservedInventories.forEach(inventoryRepository::updateReserveQuantity)
-
-        return DomainResult.success(
-            PlaceOrder(
-                orderId = order.orderId,
-                status = order.status,
-                totalAmount = order.totalAmount.amount,
-                // 3단계에서 선점 행을 만들면 채운다.
-                reservations = emptyList(),
-            )
+        return PlaceOrder(
+            orderId = order.orderId,
+            status = order.status,
+            totalAmount = order.totalAmount.amount,
+            // 3단계에서 선점 행을 만들면 채운다.
+            reservations = emptyList(),
         )
     }
 }

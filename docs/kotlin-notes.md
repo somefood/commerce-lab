@@ -18,23 +18,30 @@ Kotlin 강의를 따로 듣지 않는다 — 이 프로젝트에 필요한 관�
 
 ## 작성 예시 (Claude 작성. 이후는 사용자가 쓴다)
 
-### sealed interface + else 없는 when
+### sealed + else 없는 when
 
-- **이 레포 어디에**: `order-api/.../OrderError.kt`, `order-core/.../domain/Order.kt`의 `markPaid`
+- **이 레포 어디에**: `order-api/.../OrderException.kt`,
+  `bootstrap/.../OrderProblems.kt`의 `toProblemDetail`, `domain/Order.kt`의 `markPaid`
 
 ```kotlin
-sealed interface OrderError {
-    data class OutOfStock(val productId: String, val requested: Int, val available: Int) : OrderError
-    data object EmptyOrder : OrderError
+sealed class OrderException(message: String) : RuntimeException(message, null, false, false) {
+    class OutOfStock(val productId: String, val requested: Int, val available: Int) : OrderException("...")
+    class EmptyOrder : OrderException("...")
 }
 
 // 처리하는 쪽 — else가 없다
-when (error) {
-    is OrderError.OutOfStock -> /* error.productId 접근 가능 (스마트 캐스트) */
-    is OrderError.EmptyOrder -> ...
-    // 새 에러 타입이 추가되면 여기서 컴파일이 깨진다
+when (ex) {
+    is OrderException.OutOfStock -> /* ex.productId 접근 가능 (스마트 캐스트) */
+    is OrderException.EmptyOrder -> ...
+    // 새 하위 클래스가 추가되면 여기서 컴파일이 깨진다
 }
 ```
+
+**sealed를 예외에 붙이는 이유가 여기 있다.** `catch (e: OutOfStock)`는 케이스를 빠뜨려도
+컴파일러가 아무 말도 안 한다 — Kotlin에는 checked exception이 없다.
+그래서 던지기는 예외로 던지되, 받는 곳에서는 상위 하나(`OrderException`)만 잡고
+안에서 `when`으로 분기한다. 그러면 exhaustive 검사가 되살아난다.
+(2026-08-24에 `DomainResult`를 버리고 예외로 갈 때 이게 협상 조건이었다. M1 §4-2)
 
 - **Java 8이라면**: enum + switch로 흉내내면 케이스별로 다른 필드(`productId` 등)를 못 담는다.
   계층 구조로 만들면 `instanceof` 체인이 되고, 새 타입을 추가해도 컴파일러가 침묵한다
@@ -57,19 +64,23 @@ when (error) {
       → `domain/Order.kt`
 - [ ] **고차함수와 `fold`** — `lines.fold(Money.ZERO) { acc, line -> ... }`.
       Java 8 Stream의 `reduce`와 비교해볼 것
-      → `domain/Order.kt`, `common/DomainResult.kt`
-- [ ] **`DomainResult.fold` — 성공/실패를 한 값으로 접기** — 컨트롤러에서 HTTP 응답으로 바꾸는 유일한 지점.
-      Java라면 try-catch 또는 instanceof 분기였을 것
-      → `common/DomainResult.kt`, `bootstrap/.../OrderController.kt`
+      → `domain/Order.kt`
+- [ ] **예외를 값처럼 다루기 vs 던지기** — 이 레포는 둘 다 해봤다.
+      `DomainResult<E, T>`(8/23) → `OrderException`(8/24). 뒤집은 이유는 트랜잭션 롤백.
+      Java의 checked exception이 하려던 일과, Kotlin이 그걸 버린 대가를 같이 볼 것
+      → `order-api/.../OrderException.kt`, M1 §4-2, `git show`로 이전 버전 비교
 - [ ] **컬렉션 관용구 (`map` `mapNotNull` `associateBy` `groupBy`)** — 상품 조회 리뷰 지적
       ("라인마다 리스트를 훑는다 → `associateBy`")이 여기서 나왔다.
       Java 8 Stream + Collectors와 나란히 놓고 볼 것
       → `application/OrderPlacementService.kt`
 - [ ] **named / default arguments** — `Order(orderId = ..., accountId = ...)`.
       Java의 builder 패턴이 왜 Kotlin에선 거의 안 쓰이는가?
-- [ ] **확장 함수** — `DomainResult.map`이 인터페이스 메서드가 아니라 파일 바깥 함수인 이유
-      → `common/DomainResult.kt`
-- [ ] **제네릭 변성 (`out`, `Nothing`)** — `DomainResult` 상단 주석에 설명이 있다.
+- [ ] **확장 함수** — `OrderException.toProblemDetail()`이 클래스 메서드가 아닌 이유.
+      (`order-api`에 스프링을 못 들이므로 매핑은 bootstrap 쪽 확장 함수여야 한다)
+      → `bootstrap/.../OrderProblems.kt`
+- [ ] **제네릭 변성 (`out`, `Nothing`)** — 삭제된 `DomainResult`의 상단 주석에 설명이 있었다.
+      `git show 9367f2b:backend/modules/common/src/main/kotlin/com/commercelab/common/DomainResult.kt`
       Java의 `? extends`와 대응시켜 볼 것. (어려우면 미뤄도 된다 — 쓰는 데는 지장 없다)
-      → `common/DomainResult.kt`
-- [ ] **`inline fun`** — `DomainResult`의 연산자들에 붙어 있다. 왜 붙었나? (M1 후반에 열어볼 것)
+- [ ] **`throw`가 식(expression)이 되는 것** — `Order.markPaid`의 `when`이 식인데 한 갈래가 `throw`다.
+      Kotlin에서 `throw`의 타입은 `Nothing`이라 어떤 타입 자리에도 들어간다. Java에서는 불가능하다
+      → `domain/Order.kt`

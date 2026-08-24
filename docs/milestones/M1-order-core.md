@@ -153,13 +153,15 @@ data class ReservationView(
 enum class OrderStatus { CREATED, PAID, CANCELLED, SHIPPED, DELIVERED }
 enum class ReservationStatus { HELD, CONFIRMED, RELEASED, EXPIRED }
 
-sealed interface OrderError {
-    data class OutOfStock(val productId: String, val requested: Int, val available: Int) : OrderError
-    data class ProductNotFound(val productId: String) : OrderError
-    data class InvalidQuantity(val productId: String, val quantity: Int) : OrderError
-    data class OrderNotFound(val orderId: String) : OrderError
-    data class ConflictExhausted(val attempts: Int) : OrderError   // 2단계에서 쓴다
-    data object ReservationAlreadySettled : OrderError             // 3단계에서 쓴다
+// 2026-08-24: sealed interface OrderError → sealed class OrderException 으로 바뀌었다.
+// 아래는 그때의 원본이다. 현재 모습과 뒤집은 이유는 §4-2를 볼 것.
+sealed class OrderException(message: String) : RuntimeException(message, null, false, false) {
+    class OutOfStock(val productId: String, val requested: Int, val available: Int) : OrderException(...)
+    class ProductNotFound(val productId: String) : OrderException(...)
+    class InvalidQuantity(val productId: String, val quantity: Int) : OrderException(...)
+    class OrderNotFound(val orderId: String) : OrderException(...)
+    class ConflictExhausted(val attempts: Int) : OrderException(...)          // 2단계에서 쓴다
+    class ReservationAlreadySettled(val reservationId: String) : OrderException(...)  // 3단계에서 쓴다
 }
 
 interface OrderPlacement {
@@ -174,7 +176,8 @@ interface OrderQuery {
 `Result<T>`를 쓰고 예외를 던지지 않는 이유는 스펙 §6에 있다. 재고 부족은 사고가 아니라
 정상적인 비즈니스 결과다. 예외로 만들면 호출자가 catch를 잊었을 때 500이 나간다.
 
-> `kotlin.Result`를 쓸지, 직접 만든 `Either<OrderError, T>`를 쓸지는 사용자가 정한다.
+> ~~`kotlin.Result`를 쓸지, 직접 만든 `Either<OrderError, T>`를 쓸지는 사용자가 정한다.~~
+> **결론(2026-08-24): 둘 다 아니다. 예외로 던진다. §4-2 참고.**
 > `kotlin.Result`는 실패 타입이 `Throwable`로 고정된다는 제약이 있다. 이게 문제가 되는지
 > 직접 부딪혀 보고 판단할 것. (2단계 재시도 로직을 짤 때 답이 나온다.)
 
@@ -271,22 +274,111 @@ M1 후반부에서 더 분명해진다. 3단계의 선점 확정은 조건부 UP
 
 ---
 
-## 4-2. 도메인 실패를 HTTP로 옮기는 방법 (2026-08-23 결정)
+## 4-2. 도메인 실패를 어떻게 표현하는가 (2026-08-24 최종 결정)
 
-### 문제
+> 이 절은 두 번 쓰였다. 8/23에 "값으로 옮긴다"로 결정했고, 8/24에 **예외로 뒤집었다.**
+> 뒤집은 이유와 그 과정에서 실측한 것을 남긴다. 결론은 ADR-0005.
 
-`place()`는 실패를 예외가 아니라 `DomainResult.Failure<OrderError>`로 돌려준다(§4-1, ADR-0005 후보).
-그런데 HTTP는 상태 코드로 말한다. 어디선가 `OrderError` → 상태 코드 변환이 일어나야 한다.
+### 결정: 예상된 비즈니스 실패도 예외로 던진다
 
-처음 구현은 컨트롤러에서 `throw IllegalStateException(...)`을 했다. 그러면 값으로 돌려받은 실패가
-경계에서 다시 예외가 되고, `DomainResult`를 도입한 의미가 사라진다. 그리고 실제로 재고 부족이
-**500**으로 나갔다 — 통합 테스트의 `서버오류 == 0` 단언이 잡아야 할 바로 그 상황이다.
+`DomainResult<OrderError, T>`를 버리고 `sealed class OrderException : RuntimeException`으로 갔다.
+`common/DomainResult.kt`는 삭제했다.
 
-### 결정
+### 왜 뒤집었나 — 롤백 하나 때문이다
 
-**컨트롤러가 `when`으로 매핑하고, 예외를 쓰지 않는다.** 표는 `bootstrap/web/order/OrderProblems.kt`에 있다.
+**스프링은 예외를 보고 롤백을 결정한다. 반환값은 보지 않는다.**
 
-| OrderError | 상태 | `type` | 근거 |
+`DomainResult.failure`를 return 하는 것은 정상 종료다. 트랜잭션은 그대로 커밋된다.
+그래서 값 방식에서는 `OrderPlacementService.place()`를 **읽기·계산 구간**과 **쓰기 구간**으로
+갈라, 쓰기 전에 모든 검증을 끝내야 했다. 그것이 값으로 실패를 표현한 대가였다.
+
+그 규율은 M1에서는 지킬 수 있다. 문제는 M2다 — 원장은 "잔액을 차감하고 → 원장에 append하고 →
+그다음 어긋난 것을 발견"하는 흐름이 나오고, `ledger_entries`는 append-only라 UPDATE로 지울 수도 없다.
+쓰기가 흐름 중간에 끼는 순간 "쓰기 전에 다 검증한다"가 성립하지 않는다.
+남는 선택지는 `setRollbackOnly()`(스프링 내부 API가 애플리케이션에 침투)거나 예외다.
+
+**M1에서 미리 갈아탄다. 나중에 갈수록 시그니처가 더 많이 흔들린다.**
+
+부수적으로, Spring 진영의 주류가 예외 기반이라는 점도 맞다. Spring 6의 `ErrorResponse`/
+`ErrorResponseException`이 그 방향이고, springdoc의 동작(아래 실측 1)도 예외 기반을 전제한다.
+다만 그건 뒤집은 *이유*가 아니라 뒤집고 나서 따라온 *이득*이다.
+
+### 값 방식에서 잃은 것과 되찾은 방법
+
+| 잃은 것 | 되찾았나 | 방법 |
+|---|---|---|
+| `when`의 exhaustive 검사 | **되찾음** | `OrderException`을 sealed로 유지. 어드바이스가 그 하나만 잡고 안에서 `when`으로 분기 → 하위 클래스를 추가하고 매핑을 빠뜨리면 빌드가 깨진다 (`OrderProblems.kt`) |
+| 시그니처에 드러나는 실패 목록 | **못 되찾음** | Kotlin에는 checked exception이 없다. `@throws` KDoc으로 적지만 컴파일러가 강제하지 않는다 |
+| `data class`의 `equals` | **포기** | 테스트가 `assertEquals(에러객체, 결과)`를 못 쓴다. `assertFailsWith<T>` + 필드 단언으로 바꿨다. 줄 수가 늘었다 |
+| 스택트레이스 수집 비용 없음 | **되찾음** | `RuntimeException(msg, null, false, false)` — `writableStackTrace=false`로 `fillInStackTrace()`를 끈다 |
+
+### "일어나면 버그"와 "일상적 실패"를 가르는 선
+
+값 방식에서는 이 구분이 문법에 있었다. `throw`냐 `DomainResult.failure`냐.
+둘 다 예외가 되면 그 구분이 사라진다. **타입 계층이 그 자리를 대신한다.**
+
+- `OrderException`을 상속한다 → 예상된 실패 → 4xx
+- 상속하지 않는다 → 사고 → 500
+
+`Inventory.addReserved`가 그 경계를 한 함수 안에 담고 있다. 음수 수량은 `IllegalArgumentException`
+(위쪽 검증이 뚫렸다는 뜻이므로 500이 맞다), 재고 부족은 `OrderException.OutOfStock`(409).
+`ProblemDetailAdvice`의 두 핸들러가 이 선을 집행한다.
+
+### 실측 1 — springdoc은 어드바이스의 `@ApiResponse`를 전역 적용하는가
+
+**사실이다.** `@ExceptionHandler(OrderException::class)`에 `@ApiResponses`를 한 번 적었더니
+컨트롤러에 아무것도 안 적었는데도 명세에 붙었다.
+
+```bash
+curl -s localhost:8080/v3/api-docs | jq '.paths."/api/orders".post.responses | keys'
+# ["201","400","404","409"]
+```
+
+덤으로 성공 스키마도 살아났다. 반환 타입이 `ResponseEntity<Any>` → `ResponseEntity<PlaceOrder>`로
+좁혀졌기 때문이다. 이전에는 `{"type":"object"}`였다.
+
+컨트롤러의 애노테이션은 23줄 → 1줄이 됐다. 201만 손으로 적는다 —
+springdoc은 반환 *타입*만 보고 메서드 안의 `.created(...)`를 모르므로 그냥 두면 200으로 적힌다.
+
+### 실측 2 — `OrderException`이 `@ExceptionHandler(Exception::class)`에 먼저 잡히지 않는가
+
+**잡히지 않는다.** 스프링은 예외 타입에 더 구체적인 핸들러를 고른다. 실패 경로 5종 실측:
+
+```
+성공        201  application/json
+재고부족    409  application/problem+json  type=out-of-stock
+상품없음    404  type=product-not-found
+잘못된수량  400  type=invalid-quantity
+빈주문      400  type=empty-order
+재고행없음  500  type=internal-error   ← IllegalArgumentException. 로그에만 스택트레이스
+DB: orders=1  order_lines=1  reserved=1   ← 실패한 5건은 아무것도 쓰지 않았다
+```
+
+응답은 값 방식일 때와 **한 글자도 다르지 않다.** 바뀐 것은 안쪽 구조뿐이다.
+
+### 롤백이 실제로 도는지 — 이번 전환의 증거
+
+`OrderPlacementService.place()`는 이제 **주문을 먼저 저장하고 재고를 나중에 검사한다.**
+일부러 그 순서다. 값 방식이었다면 실패 응답과 함께 주문 행이 남는다
+(실측했던 증상: 성공 1건인데 `orders=2`).
+
+`OrderRollbackIntegrationTest` 3건이 이걸 못 박는다.
+
+| 테스트 | 검사하는 것 |
+|---|---|
+| 재고가 모자라면 409가 나가고 주문 행은 남지 않는다 | 롤백 |
+| 상품이 없으면 404가 나가고 아무것도 쓰지 않는다 | 쓰기 전 실패 |
+| 성공한 주문은 남는다 | 대조군 — 없으면 "아예 저장 안 됨" 버그도 초록불 |
+
+**이 테스트가 진짜로 롤백을 검사하는지 확인했다.**
+`@Transactional(noRollbackFor = [OrderException::class])`를 임시로 붙이자
+재고 부족 케이스만 빨간불이 됐다. 통과가 우연이 아니다.
+
+### 여전히 남은 표 — `OrderException` → HTTP
+
+값 방식에서 만든 매핑표를 그대로 재사용했다. 상태 코드도 `type`도 확장 필드도 바뀌지 않았다.
+
+| OrderException | 상태 | `type` | 근거 |
 |---|---|---|---|
 | `OutOfStock` | 409 | `out-of-stock` | 반품·입고·선점 만료로 달라질 수 있다 |
 | `ConflictExhausted` | 409 | `conflict-exhausted` | 재시도하면 될 수 있다 |
@@ -317,110 +409,23 @@ M1 후반부에서 더 분명해진다. 3단계의 선점 확정은 조건부 UP
 `detail`은 사람이 읽는 문장이고, 기계가 분기할 값은 `type`과 확장 필드에 넣는다.
 클라이언트가 `detail.includes("재고")` 같은 걸 하기 시작하면 설계가 실패한 것이다.
 
-### 컨트롤러 반환 타입: `ResponseEntity<Any>` + `@ApiResponses`
+### 새로 생긴 아키텍처 규칙
 
-성공은 `PlaceOrder`, 실패는 `ProblemDetail`이라 한 타입으로 좁힐 수 없다.
-그러면 springdoc이 스키마를 추론하지 못한다 — 실제로 `{"type":"object"}`가 나온다.
+`OrderException`을 `ErrorResponseException`(Spring)으로 상속시키면 springdoc과 상태 코드 처리가
+공짜로 따라온다. 대가는 `order-api`가 스프링 웹에 묶이는 것이고, 그러면 M4 물리 분리가 죽는다.
+유혹이 실재하는 자리라 ArchUnit 규칙으로 못 박았다 — `order-api는 어떤 프레임워크도 알지 못한다`.
 
-버린 대안은 **`ResponseEntity<PlaceOrder>`를 유지하고 실패는 `ErrorResponseException`으로 던지기**였다.
-성공 스키마가 자동으로 나오는 게 장점이다. 버린 이유는 두 가지다.
+### 면접에서 이걸 어떻게 말하나
 
-1. **추론은 어차피 틀린다.** 실측해보니 `ResponseEntity<PlaceOrder>`로 둬도 명세에는 `200`으로 적힌다.
-   springdoc은 반환 *타입*만 보고 메서드 안의 `.created(...)`를 모른다. 실패 응답은 아예 안 나온다.
-   명세를 맞추려면 어느 쪽이든 `@ApiResponses`를 손으로 적어야 한다.
-2. **예상된 실패를 예외로 되돌리는 것**이 이 마일스톤의 결정과 정면으로 부딪힌다.
+> "예상된 실패를 값으로 돌려주는 방식을 먼저 써봤다. 그랬더니 스프링이 롤백을 안 하더라 —
+> 스프링은 예외만 보고 반환값은 안 본다. 실패했다고 응답해놓고 주문 행이 남았다.
+> 서비스를 읽기 구간과 쓰기 구간으로 갈라 막았는데, 원장처럼 쓰기가 흐름 중간에 끼는
+> 곳에서는 그 규율이 성립하지 않을 것 같아 예외로 뒤집었다.
+> 대신 예외 계층을 sealed로 유지해서, 매핑을 빠뜨리면 컴파일이 깨지도록 했다.
+> 스택트레이스는 껐다 — 재고 부족은 초당 수백 번 나는 정상 결과지 사고가 아니다."
 
-포기한 것: 애노테이션이 장황하고, `when`에 분기를 추가하고 `@ApiResponse`를 안 늘리면
-**명세가 조용히 거짓말을 한다.** `when`의 exhaustive 검사와 달리 컴파일러가 잡아주지 않는다.
-(계약 검증 테스트로 막을 수 있다. M1 범위 밖.)
-
-### 예외는 어디에 남았나
-
-`ProblemDetailAdvice`는 **예상하지 못한 예외만** 500으로 내보낸다. 도메인 에러 매핑은 여기 없다.
-
-이전 구현은 `@ExceptionHandler(RuntimeException::class)`로 모든 런타임 예외를 400으로 바꿨다.
-`NullPointerException`도 커넥션 풀 고갈도 전부 "클라이언트가 잘못 보냈다"가 됐고,
-5xx 그래프는 평평했고, **`서버오류 == 0` 단언은 영원히 통과했다.** 계측기가 고장 난 채로 초록불이었다.
-
-규칙: **잡을 예외는 좁게 지정한다. 안 잡힌 것이 500으로 나가는 건 정상 동작이다.**
-500은 "우리가 예상 못 한 일이 일어났다"는 유일한 신호다.
-
-`detail`에 `ex.message`를 넣지 않는다 — 테이블명·쿼리·경로가 새어 나간다.
-클라이언트에겐 "실패했다"만 알리고 원인은 로그에 남긴다. 둘을 잇는 것은 추적 ID의 몫이다(M5).
-
-### ⚠ 다시 이야기할 것 — 이게 보편적인 방식인가 (2026-08-23, 미결)
-
-**결론이 나지 않았다. 다음 세션에서 이어서 이야기한다.**
-
-위 결정은 "예상된 실패를 예외로 만들지 않는다"를 경계까지 일관되게 지킨 결과다.
-그런데 **Spring 진영의 주류는 예외 기반이다.** 이 점을 사용자가 물었고, 사실이다.
-
-#### (가) 지금 방식 — 값으로 옮긴다
-
-```kotlin
-fun place(...): ResponseEntity<Any> =
-    orderPlacement.place(command).fold(
-        onSuccess = { ResponseEntity.created(...).body(it) },
-        onFailure = { it.toResponse() },
-    )
-```
-
-- `DomainResult`를 도입한 결정과 일관된다. 예외가 제어 흐름에 끼지 않는다
-- 컨트롤러를 읽으면 이 API가 낼 수 있는 응답이 전부 보인다
-- 반환 타입이 `Any`라 springdoc이 추론하지 못한다 → 엔드포인트마다 `@ApiResponses`
-- 실제로 이 모양을 쓰는 곳: Kotlin + Arrow `Either`를 쓰는 팀, 함수형 지향 코드베이스
-
-#### (나) 예외 기반 — Spring의 주류
-
-```kotlin
-fun place(...): ResponseEntity<PlaceOrder> =
-    orderPlacement.place(command).fold(
-        onSuccess = { ResponseEntity.created(...).body(it) },
-        onFailure = { throw it.toErrorResponseException() },
-    )
-```
-
-- Spring 6이 `ErrorResponse` / `ErrorResponseException`을 추가한 것이 이 방향이다.
-  프레임워크가 미는 길이다
-- **springdoc은 `@RestControllerAdvice` 핸들러의 `@ApiResponse`를 전역으로 적용한다.**
-  에러 응답을 어드바이스에 한 번만 적으면 모든 엔드포인트 명세에 붙는다 —
-  (가)의 "애노테이션이 장황하다"는 단점이 상당 부분 사라진다
-- 대신 값으로 돌려받은 실패를 경계에서 다시 예외로 되돌린다.
-  도메인·애플리케이션만 깨끗하고 실제 제어 흐름은 예외로 흐른다
-
-#### 되돌리는 비용
-
-작다. 서비스와 도메인은 그대로 두고 **컨트롤러만** 바꾸면 된다.
-`OrderProblems.kt`의 매핑표(상태 코드 · type · 확장 필드)는 거의 그대로 재사용된다.
-`ResponseEntity<Any>` 대신 `ErrorResponseException`을 만들어 던지고,
-어드바이스에 `@ApiResponse`를 한 번 적으면 끝이다.
-
-#### 다음 세션에서 확인할 것
-
-1. `@RestControllerAdvice` + `@ApiResponse`가 정말 전역으로 붙는지 **실측**한다
-   (지금까지 이 프로젝트에서 추론에 의존한 판단은 여러 번 틀렸다)
-2. (나)로 갈 때 `ErrorResponseException`이 `ProblemDetailAdvice`의
-   `@ExceptionHandler(Exception::class)`에 먼저 잡히지 않는지 확인한다
-   (부모 `ResponseEntityExceptionHandler`가 더 구체적인 핸들러를 갖고 있어 이길 것으로 보이나, 실측 필요)
-3. 어느 쪽이든 **ADR-0005에 결정과 근거를 남긴다.** 두 방식을 다 본 상태이므로
-   "관례를 몰라서"가 아니라 "알고도 이렇게 했다"를 쓸 수 있다
-
-### 실패를 값으로 돌려주는 것과 트랜잭션
-
-**스프링은 예외를 보고 롤백을 결정한다. 반환값은 보지 않는다.**
-
-`DomainResult.failure`를 `return` 하는 것은 정상 종료다. 트랜잭션은 그대로 커밋된다.
-주문을 저장한 뒤 재고 부족으로 실패를 반환하면, 실패했다고 응답해놓고 `orders` 행은 남는다.
-(실측: 성공 1건인데 `orders=2`)
-
-`OrderPlacementService.place()`를 **읽기·계산 구간**과 **쓰기 구간**으로 나눠 해결했다.
-모든 검증이 쓰기 전에 끝나므로 되돌릴 것이 없다.
-버린 대안은 `TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()`다 —
-스프링 내부 API가 애플리케이션 서비스에 들어오고, 애초에 쓰지 않으면 되돌릴 필요도 없다.
-
-**이 함정은 `DomainResult`를 도입한 순간 예약돼 있었다.** 실패를 값으로 표현하기로 하면
-"실패했는데 커밋된다"를 어디선가 다뤄야 한다. 면접에서 나올 만한 지점이다.
-
+두 방식을 다 돌려보고 뒤집은 것이 이 답변의 근거다. 관례를 몰라서 값으로 간 게 아니라
+알고도 해봤고, 이유가 생겨서 바꿨다.
 
 ## 5. 실패하는 테스트 — 실행 가능한 스펙
 
@@ -445,7 +450,7 @@ class OrderTest {
 
     @Test
     fun `수량이 0 이하인 라인은 주문을 만들 수 없다`() {
-        // OrderError.InvalidQuantity
+        // OrderException.InvalidQuantity
     }
 
     @Test
@@ -586,7 +591,7 @@ M1 구현이 시작되면 Claude가 다음 규칙을 `ArchitectureTest`에 추�
 
 1. `inventories.version`에 `@Version` 적용
 2. 충돌 시 재시도: 최대 횟수, 백오프 유무를 직접 정한다
-3. 재시도 한도 초과 → `OrderError.ConflictExhausted`
+3. 재시도 한도 초과 → `OrderException.ConflictExhausted`
 4. 테스트 통과 확인 (오버셀 0)
 5. k6 재실행 → TPS·p99·충돌율 기록
 
@@ -825,7 +830,7 @@ UPDATE "order".reservations
 - ADR-0002: 스키마 마이그레이션 도구 (§2)
 - ADR-0003: 재고 동시성 제어 방식 — 낙관적 락 vs 비관적 락 (2단계 수치 근거)
 - ADR-0004: 선점 만료 구동 방식 — 배치 단독, TTL 3분 / 주기 5초 (§11 합의 결과)
-- ADR-0005: 도메인 에러 표현 — `kotlin.Result` vs 자체 `DomainResult` (§4.1에서 부딪힌 결과)
+- ADR-0005: 도메인 실패 표현 — 값(`DomainResult`)으로 갔다가 예외로 뒤집은 과정 (§4-2)
 - ADR-0006: 도메인 모델과 영속성 모델 분리 (§4-1)
 
 ---
@@ -856,19 +861,21 @@ UPDATE "order".reservations
   - §4.1이 제안이다. 그대로 써도 되고 바꿔도 된다. **결정은 내가 한다**
   - 여기서 정할 것 두 가지:
     - 실패를 `kotlin.Result`로 표현할까, 자체 `Either<OrderError, T>`로 할까 (§4.1 주석 참고)
+      → 8/23 `DomainResult`로 결정 → 8/24 예외로 뒤집음 (§4-2)
     - `orderId`는 서버가 만드나, 클라이언트가 주나
   - **완료 판정:** `./gradlew :modules:order:order-api:build` 성공
   - 끝나면 나에게 알려줄 것 → §5 테스트 파일을 본문까지 채워 커밋한다
 
-- [x] ~~**2. `order-api` 시그니처 확정**~~ — 완료. `DomainResult<OrderError, PlaceOrder>`
+- [x] ~~**2. `order-api` 시그니처 확정**~~ — 완료. `place(command): PlaceOrder` + `OrderException`
+  (8/23에는 `DomainResult<OrderError, PlaceOrder>`였다. 8/24에 예외로 뒤집었다 — §4-2)
 - [x] ~~**3. 도메인 모델 + 단위 테스트 통과**~~ — 완료 (`ee2d88a`). 도메인 테스트 17건 통과
-  - `Order.place` / `markPaid` / `cancel` + `OrderError` 8종
+  - `Order.place` / `markPaid` / `cancel` + `OrderException` 8종
   - 상태 전이는 `else` 없는 `when(status)`. `OrderStatus`에 값이 추가되면 컴파일이 깨진다
   - `updatedAt` 스펙 5건을 별도로 고정했다 (§5.1)
 
 - [x] ~~**4. 락 없이 구현 + REST 어댑터**~~ — 완료 (2026-08-23). 주문 생성 경로가 끝까지 흐른다
   - 포트·어댑터: `Product` / `Order` / `Inventory` 3쌍, 모두 `domain`에 포트 · `infrastructure`에 어댑터
-  - 실패 응답: `OrderError` → RFC 9457 `ProblemDetail`. 표는 `bootstrap/web/order/OrderProblems.kt`
+  - 실패 응답: `OrderException` → RFC 9457 `ProblemDetail`. 표는 `bootstrap/web/order/OrderProblems.kt`
   - 실측 결과 (재고 1, 순차 5요청):
     ```
     성공        201  Location + PlaceOrder 본문
@@ -936,8 +943,10 @@ UPDATE "order".reservations
 
 - [ ] **ADR-0002 작성** — 마이그레이션 도구. 합의 끝났고 기록만 남았다 (§2)
 - [ ] **ADR-0004 작성** — 선점 만료 구동 방식. 합의 끝남 (§11)
-- [ ] **ADR-0005 작성** — 도메인 실패 표현. `DomainResult`를 쓰고 예외를 쓰지 않기로 한 이유
-  - 함께 정한 것: 경계에서도 예외로 되돌리지 않는다. `OrderError` → `ProblemDetail`을 값으로 옮긴다
+- [ ] **ADR-0005 작성** — 도메인 실패 표현. **값으로 갔다가 예외로 뒤집은 과정을 쓴다**
+  - 두 방식을 다 돌려본 것이 이 ADR의 값어치다. 어느 쪽이 옳으냐가 아니라
+    "무엇을 재보고 바꿨나"를 쓸 것. 재본 것: 롤백 동작, springdoc 전역 적용, 실패 경로 6종
+  - 뒤집은 이유는 롤백 하나다. springdoc 이득은 따라온 것이지 이유가 아니다 — 순서를 섞지 말 것
   - 예외를 남겨둔 자리도 적을 것 — "일어나면 버그인 것"만 예외다 (`Inventory.addReserved`의 음수 검사)
 - [ ] **ADR-0006 작성** — 도메인 모델과 영속성 모델 분리 (§4-1)
   - `docs/adr/0001-modular-monolith.md`가 형식 예시다
