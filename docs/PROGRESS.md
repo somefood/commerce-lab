@@ -175,21 +175,25 @@ git revert be79e97                       # 되돌리고 처음부터 하고 싶�
 2. `RuntimeException(msg, null, false, false)`의 마지막 `false`가 뭔가
 3. `OrderPlacementService`가 **주문을 먼저 저장하고 재고를 나중에 검사**하는 이유
 
-#### B. ADR 쓰기 — 뼈대는 만들어져 있다
+#### B. ADR 읽고 고치기 — Claude가 다 썼다
 
 [`docs/adr/`](./adr/) · [쓰는 법](./adr/README.md)
 
-| 문서 | 난이도 | 비고 |
-|---|---|---|
-| [0005 도메인 실패 표현](./adr/0005-domain-failure-representation.md) | 재료 제일 많음 | **여기부터 추천.** 값으로 갔다 예외로 뒤집은 과정이 통째로 내용이 된다 |
-| [0002 마이그레이션 도구](./adr/0002-schema-migration-tool.md) | 쉬움 | 합의 끝났고 기록만 남았다 |
-| [0004 만료 구동 방식](./adr/0004-reservation-expiry-driver.md) | 쉬움 | 합의 끝남 |
-| [0006 도메인·영속성 분리](./adr/0006-domain-persistence-separation.md) | 보통 | 매핑 비용을 실제로 세어볼 것 |
+2026-08-24부터 **ADR은 Claude가 쓴다.** 5건 다 작성돼 있다.
+사용자 몫은 **읽고 어색한 부분을 고치는 것**이다 — 그것만으로도 원래 목적의 절반은 남는다.
 
-0003은 2단계 락 수치가 나와야 써서 번호만 예약해뒀다.
+| 문서 | 내용 |
+|---|---|
+| [0001 모듈러 모놀리스](./adr/0001-modular-monolith.md) | 왜 처음부터 나누지 않았나 |
+| [0002 Flyway](./adr/0002-schema-migration-tool.md) | `ddl-auto: update`를 왜 안 쓰나 |
+| [0004 선점 만료](./adr/0004-reservation-expiry-driver.md) | Redis TTL 이벤트를 왜 버렸나 |
+| [0005 도메인 실패 표현](./adr/0005-domain-failure-representation.md) | **값으로 갔다 예외로 뒤집은 과정.** 재료가 제일 많다 |
+| [0006 도메인·영속성 분리](./adr/0006-domain-persistence-separation.md) | 매핑 비용을 내고 무엇을 얻었나 |
 
-**M1 §4-2를 먼저 열지 말 것.** 거기 다 정리돼 있어서 보고 쓰면 네 문장이 안 된다.
-막히는 지점이 곧 아직 이해 못 한 부분이다.
+0003은 2단계 락 수치가 나와야 쓴다. 0007(파생값 정합성 — 대사 vs 원장)은 후보로 잡아뒀다.
+
+읽을 때 볼 것: **대안과 결과 절.** 결정만 적힌 ADR은 코드를 읽으면 알 수 있는 걸
+반복하는 것이라 값어치가 없다. 그 두 절이 부실하면 고쳐달라고 말할 것.
 
 #### C. §13-1의 "2단계 전에 정리할 빚" — 7건 + 1건
 
@@ -287,7 +291,8 @@ docker run --rm -i --network host grafana/k6 run \
 - **HTTP 실패 매핑**: `OrderException` → RFC 9457 `ProblemDetail`. 표는 `OrderProblems.kt`.
   **400과 409를 가르는 기준은 "다시 시도해서 달라질 여지가 있는가"다.**
   변환 지점은 `ProblemDetailAdvice` 한 군데. 컨트롤러는 예외를 잡지 않는다
-- ADR-0002 / 0004 / 0005 / 0006 작성 대기 — **사용자 몫**
+- **ADR은 Claude가 쓴다** (2026-08-24 변경). 0001·0002·0004·0005·0006 작성 완료.
+  사용자는 읽고 어색한 부분을 고친다. 0003은 2단계 수치 대기, 0007(파생값 정합성)은 후보
 
 ### 환경 메모
 
@@ -319,8 +324,10 @@ docker run --rm -i --network host grafana/k6 run \
 - [ ] 2단계: 낙관적 락 + 재시도 정책
 - [ ] 3단계: 선점(HELD) + TTL, 만료/확정 경쟁 조건 처리
 - [ ] 프론트: 상품 목록 / 주문 / 실시간 재고 (Claude)
-- [ ] ADR 2건 이상 (사용자) — ADR-0002 마이그레이션 도구, ADR-0004 만료 구동 방식,
-      ADR-0005 도메인 실패 표현, ADR-0006 도메인·영속성 분리
+- [x] ADR 5건 (Claude, 2026-08-24) — [0001](./adr/0001-modular-monolith.md) ·
+      [0002](./adr/0002-schema-migration-tool.md) · [0004](./adr/0004-reservation-expiry-driver.md) ·
+      [0005](./adr/0005-domain-failure-representation.md) · [0006](./adr/0006-domain-persistence-separation.md)
+- [ ] ADR-0003 재고 동시성 제어 — 2단계 수치가 나와야 쓴다
 - [ ] 회고
 
 ### M2 — 결제 원장과 멱등성 (사용자 구현)
