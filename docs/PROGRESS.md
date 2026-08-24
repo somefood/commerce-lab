@@ -21,7 +21,8 @@
 
 ### 지금 딱 멈춘 지점
 
-M1 §13-5. **1단계 구현이 끝났고 오버셀을 관측했다.** 남은 것은 k6 수치와 리뷰다.
+M1 §13-5 **완료.** 1단계 구현·오버셀 관측·k6 측정이 전부 끝났다.
+남은 것은 리뷰와 §13-1의 빚 정리, 그리고 2단계 진입 판단이다.
 
 그리고 8/24에 **도메인 실패 표현을 `DomainResult`(값)에서 예외로 전면 전환했다.**
 사용자 지시로 Claude가 한 커밋에 몰아서 했다 — `git show`로 통째로 보고 직접 다시 짜보는 게 목적이다.
@@ -43,9 +44,9 @@ cd backend && ./gradlew build
 | 동시 요청 / 재고 | 100 / 50 |
 | 성공 주문 | **100** |
 | 오버셀 | **50** |
-| DB `reserved` | **21** ← 갱신 손실. 돌릴 때마다 다르다 |
+| DB `reserved` | **8~21** ← 갱신 손실. 5회 돌린 범위 |
 | 5xx | 0 |
-| TPS / p95 / p99 | **미측정 — k6 남음** |
+| TPS / p95 / p99 | **845.6/s / 143.67ms / 164.39ms** (throughput 시나리오) |
 
 두 가지 고장이 동시에 일어났다.
 
@@ -138,25 +139,31 @@ git show <이 커밋> -- backend/modules/   # 네 몫이었던 부분만
 
 수정이 아니라 처음부터 다시 쓸 필요는 없다. 되돌리려면 `git revert` 한 번이면 된다.
 
-**1. k6로 TPS / p95 / p99 재기**
+**1. ~~k6로 TPS / p95 / p99 재기~~ — 완료 (2026-08-24). 결과는 M1 §8**
 
+가장 큰 발견: **throughput 시나리오에서 25,466건이 팔렸는데 `reserved`는 2,842였다.
+88.8%가 장부에서 증발했다.** 재고 부족으로 걸리는 요청이 하나도 없는 상황인데도 그렇다.
+
+오버셀은 재고 한도가 상한 역할을 해서 초과분이 50으로 결정론적인데,
+**갱신 손실은 상한이 없어서 경합만 있으면 계속 커진다.**
+그리고 5xx 0건 / 실패율 0% / p99 164ms — **계기판은 전부 초록불이다.**
+DB를 직접 열어야 보인다.
+
+재현:
 ```bash
-docker compose -f infra/docker-compose.yml up -d
 cd backend && ./gradlew :bootstrap:bootRun --args='--spring.profiles.active=dev'
 # 다른 터미널
-docker run --rm -i --network host grafana/k6 run - < infra/k6/order-concurrent.js
+docker run --rm -i --network host grafana/k6 run \
+  --summary-trend-stats="avg,min,med,max,p(90),p(95),p(99)" \
+  -e SCENARIO=throughput - < infra/k6/order-concurrent.js
 ```
+p99는 `--summary-trend-stats`를 붙여야 나온다. k6 기본 요약에는 없다.
 
-`http_req_duration`의 `p(95)`/`p(99)`와 `iterations`의 `/s`를 M1 §8 표 1행에 적는다.
+**2. ~~통합 테스트를 두세 번 더 돌려 `DB reserved`가 흔들리는 범위 보기~~ — 완료**
 
-주의: `teardown`이 `GET /api/products`를 부르는데 그 엔드포인트가 없다.
-`[최종 재고 조회 실패]` 로그만 찍히고 측정 자체는 정상이다. 만들거나 무시하거나.
+burst 5회: 21 / 10 / 10 / 8 / 16. **오버셀은 매번 정확히 50이고 `reserved`만 흔들린다.**
 
-**2. 통합 테스트를 두세 번 더 돌려 `DB reserved`가 흔들리는 범위 보기**
-
-21은 한 번의 값일 뿐이다. **매번 다르다는 것 자체가 관측 결과다.**
-
-**3. 리뷰 요청 후 2단계 진입 판단**
+**3. 리뷰 요청 후 2단계 진입 판단** ← 여기부터
 
 **4. M1 §13-1의 "2단계 전에 정리할 빚" 처리**
 
@@ -180,6 +187,7 @@ ADR-0005는 이제 쓸 거리가 두 배다. 값으로 갔다가 예외로 뒤�
 | 중요 | `OrderLineRepository` | `JpaRepository<_, String>`인데 `@Id`는 `Long?` |
 | 중요 | `InventoryEntity.version` | `@Version`이 없다. 지금은 그냥 정수 컬럼 |
 | 중요 | `InventoryRepository.findByProductId` | 재고 행이 없으면 `IllegalArgumentException` → 500 (실측으로 확인함) |
+| 중요 | `bootstrap/.../ProductController` | 빈 스텁이 `Unit`을 반환 → **200 + 빈 본문**. k6 teardown이 `status !== 200` 가드를 통과한 뒤 `res.json()`에서 크래시한다. 404보다 고약하다 — 호출자의 오류 처리를 무력화한다 |
 | 사소 | `PlaceOrder.reservations` | 3단계 전까지 `emptyList()`. TODO 주석은 달아둠 |
 | 사소 | 여러 파일 | 파일 끝 개행 없음 |
 
@@ -263,7 +271,9 @@ ADR-0005는 이제 쓸 거리가 두 배다. 값으로 갔다가 예외로 뒤�
 
 | 개념 | 마일스톤 | 한 줄 요약 |
 |---|---|---|
-| 갱신 손실 (lost update) | M1 | `SET x = 읽은값 + 1`은 그 사이 남이 쓴 값을 덮어쓴다. 오버셀보다 고약하다 — 판 사실 자체가 장부에서 사라진다 |
+| 갱신 손실 (lost update) | M1 | `SET x = 읽은값 + 1`은 그 사이 남이 쓴 값을 덮어쓴다. 오버셀보다 고약하다 — 판 사실 자체가 장부에서 사라진다. **오버셀은 재고 한도가 상한이라 결정론적인데, 갱신 손실은 상한이 없어 경합만큼 커진다** (실측 88.8%) |
+| 초록불인 고장 | M1 | 5xx 0건 · 실패율 0% · p99 164ms인데 장부의 88%가 증발해 있었다. **응답만 보는 계측은 데이터 정합성 고장을 못 잡는다** |
+| 200을 반환하는 빈 스텁 | M1 | `Unit`을 반환하는 컨트롤러는 200 + 빈 본문이다. 호출자의 `status !== 200` 가드를 통과시켜 오류 처리를 무력화한다. 404가 차라리 낫다 |
 | 실패를 값으로 vs 예외로 | M1 | 둘 다 해봤고 예외로 뒤집었다. **스프링은 예외만 보고 롤백한다** — 값으로 돌려주면 실패해도 커밋되므로 "쓰기 전에 다 검증한다"는 규율을 사람이 져야 한다 |
 | sealed를 예외에 붙이는 이유 | M1 | `catch`는 케이스를 빠뜨려도 컴파일러가 침묵한다. 상위 하나만 잡고 안에서 `when`으로 분기해야 exhaustive 검사가 살아난다 |
 | 예상된 실패의 스택트레이스 | M1 | `fillInStackTrace()`는 스택 깊이에 비례한다. 초당 수백 번 나는 정상 결과에 낼 비용이 아니다. `writableStackTrace=false`로 끈다 |
