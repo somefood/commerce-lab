@@ -207,22 +207,46 @@ git revert be79e97                       # 되돌리고 처음부터 하고 싶�
 
 1단계 코드 + `be79e97` 전환분 리뷰를 받았다. 아래는 **아직 안 고친 것**이다.
 
-**1. `OrderRollbackIntegrationTest`의 `상품이 없으면 404가 나가고 아무것도 쓰지 않는다`
-   — 두 번째 단언이 실패할 수 없다** ← 제일 먼저
+**1. ~~`OrderRollbackIntegrationTest`의 단언이 실패할 수 없다~~ — 고침 (2026-08-25)**
 
-주문요청의 productId는 `p-없는상품`인데, `주문건수()`는 `product_id = 'p-rollback'`인
-라인을 가진 주문만 센다. 버그로 주문이 저장돼도 그 주문의 라인은 `p-없는상품`이라
-이 쿼리는 여전히 0을 돌려준다. **무엇을 세야 이 단언이 의미를 갖나.**
+`주문건수()`가 `product_id = 'p-rollback'` 라인을 가진 주문만 세고 있었다.
+`p-없는상품`을 주문하는 테스트에서는 버그로 주문이 저장돼도 0이 나온다 —
+**구조적으로 실패할 수 없는 단언이었다.**
 
-**2. `OrderPlacementService`가 주문을 먼저 저장하고 재고를 나중에 검사한다**
+고친 방법: **필터를 없애고 테이블 전체를 센다.** 대신 `@BeforeEach`가 orders를 비워
+"0이어야 한다"가 성립하게 만든다. 범위를 좁히는 대신 시작점을 고정했다.
 
-롤백 증거로는 훌륭하지만 이건 프로덕션 코드다. 재고 소진 후의 모든 요청이
-`orders` 1행 + `order_lines` N행을 INSERT하고 409로 롤백된다.
-롤백된 INSERT도 WAL·인덱스·트랜잭션 ID를 쓴다 (Postgres의 죽은 튜플과 autovacuum을 찾아볼 것).
-2단계에서 더 문제가 된다 — 트랜잭션이 더 일찍 시작되고 더 오래 산다.
+테스트 2건도 새로 넣었다.
+- `여러 상품 중 하나만 재고가 모자라면 앞서 잡은 재고도 되돌아간다` — **검증 순서에
+  의존하지 않는 롤백 테스트.** 재고 예약은 상품 단위로 순차 처리되므로 서비스가
+  검증을 앞으로 당겨도 "일부는 쓰고 실패"가 반드시 생긴다 (아래 2번과 이어진다)
+- `여러 상품 주문이 전부 성공하면 둘 다 잡힌다` — 다중 라인 대조군
+
+`noRollbackFor`를 임시로 붙여 두 롤백 테스트가 **둘 다** 빨간불이 되는 것을 확인했다.
+
+**2. `OrderPlacementService`가 주문을 먼저 저장하고 재고를 나중에 검사한다** ← 남음 (사용자 몫)
+
+**실측으로 확인했다 (2026-08-25).** `logging.level.org.hibernate.SQL=DEBUG`로 켜고
+409로 끝나는 요청 하나가 내는 SQL:
+
+```
+1  select  products        ← findByIds
+2  select  orders          ← merge(). 직접 채운 @Id 때문에 INSERT 앞에 붙는 SELECT (§13-1의 빚)
+3  insert  orders          ← 여기서 이미 DB에 갔다
+4  insert  order_lines
+5  select  inventories     ← 이 쿼리가 위 두 INSERT를 flush시켰다
+```
+
+**INSERT가 영속성 컨텍스트에만 머무는 게 아니라 실제로 DB에 도달한다.**
+JPA가 쿼리 전에 auto-flush하기 때문이다(`FlushMode.AUTO`) — 5번 조회가 3·4번을 밀어낸다.
+그리고 전부 롤백된다. 재고 소진 후에는 **모든 요청**이 이 경로다.
 
 > **"롤백을 증명하려면 이 순서여야 한다"와 "운영에서 이 순서가 맞다"는 다른 질문이다.**
-> 검증을 앞으로 되돌려도 롤백 테스트가 여전히 의미를 갖게 하려면 어떻게 해야 하나?
+> 검증을 앞으로 되돌려도 롤백 테스트가 의미를 갖게 하려면?
+> → **1번에서 답을 만들어뒀다.** 다중 상품 테스트는 순서와 무관하게 부분 쓰기를 만든다.
+> 이제 서비스를 "검증 먼저 → 쓰기 나중"으로 되돌려도 롤백 검사가 살아 있다.
+
+`OrderPlacementService`는 `backend/modules/**`라 원칙상 사용자 몫이다.
 
 **3. `ProductController`가 여전히 `Unit`을 반환한다** — 실측: `200`, 본문 `null`
 
@@ -230,15 +254,27 @@ git revert be79e97                       # 되돌리고 처음부터 하고 싶�
 "성공했다"고 거짓말하는 응답은 호출자의 오류 처리를 통째로 무력화한다.
 명세에도 200으로 박혀 나간다.
 
-**4. 명세 오염 (실측)** — 어드바이스의 `@ApiResponses`가 전역이라 관계없는 곳까지 붙었다
+**4. ~~명세 오염~~ — 고침 (2026-08-25). 범위를 좁혔다**
+
+전역 어드바이스에 있던 `OrderException` 핸들러를
+`bootstrap/web/order/OrderExceptionAdvice.kt`로 떼어내고
+`@RestControllerAdvice(assignableTypes = [OrderController::class])`로 적용 대상을 좁혔다.
 
 ```
-POST /api/dev/reset  ['200','400','404','409']
-GET  /api/health     ['200','400','404','409']
+                     이전                         지금
+POST /api/dev/reset  ['200','400','404','409']  → ['200']
+GET  /api/health     ['200','400','404','409']  → ['200']
+GET  /api/products   ['200','400','404','409']  → ['200']
+POST /api/orders     ['201','400','404','409']  → 그대로
 ```
 
-이 둘이 `OrderException`을 던질 수 있나? 전역 적용의 대가다.
-감수할지 범위를 좁힐지 결정할 것.
+런타임 실패 경로(409/404/400)는 그대로다. 실측으로 확인했다.
+
+**`@Order(HIGHEST_PRECEDENCE)`가 필요하다.** `ProblemDetailAdvice`의
+`@ExceptionHandler(Exception::class)`도 `OrderException`에 매칭되는데,
+스프링은 어드바이스 빈을 `@Order` 순서로 훑어 먼저 걸리는 것을 쓴다.
+**클래스가 다르면 "더 구체적인 타입" 규칙이 적용되지 않는다** — 순서를 안 주면
+재고 부족이 500으로 나갈 수 있다.
 
 **사소** — `OrderException.EmptyOrder`는 필드가 없는데 왜 `class`인가
 (`data object`로 못 하는 이유는 있다) · `OrderQuery.findById`의 `@throws`가 정말 하나뿐인가
