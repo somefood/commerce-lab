@@ -107,7 +107,30 @@ export function teardown(data) {
     console.log(`상품 ${data.productId}를 찾지 못했다`);
     return;
   }
-  const oversold = target.reserved - target.total;
   console.log(`[최종] total=${target.total} reserved=${target.reserved} available=${target.total - target.reserved}`);
-  console.log(oversold > 0 ? `[오버셀] ${oversold}건 초과 판매됨` : `[오버셀] 0건`);
+
+  // reserved로 오버셀을 판정하지 않는다. 2026-08-25에 이 로직이 거짓 안심을 냈다 —
+  // 재고 50에 100건이 팔린 실행에서 reserved가 11로 찍혔고, reserved - total 이 음수라
+  // "[오버셀] 0건"을 출력했다. **오버셀이 50건 난 실행에서 계측기가 이상 없음이라고 말했다.**
+  //
+  // 원인은 갱신 손실(lost update)이다. 락 없이 `reserved = 읽은값 + n`을 쓰면
+  // 동시 트랜잭션이 서로의 값을 덮어써서 reserved가 실제 판매량보다 훨씬 낮게 남는다.
+  // 즉 **오버셀을 재려던 눈금이 다른 고장 때문에 망가져 있다.**
+  //
+  // 오버셀은 "성공 응답 수 > 재고"로 판정해야 한다. 그 값은 order_succeeded 카운터에 있고
+  // teardown에서는 읽을 수 없으므로, 여기서는 판정하지 않고 무엇을 봐야 하는지만 알린다.
+  const oversold = target.reserved - target.total;
+  if (oversold > 0) {
+    console.log(`[오버셀] 확정 — reserved가 total을 ${oversold} 넘었다`);
+  } else {
+    console.log(`[오버셀] 이 값으로는 판정할 수 없다.`);
+    console.log(`         reserved(${target.reserved}) <= total(${target.total})이지만, 갱신 손실이 있으면`);
+    console.log(`         reserved 자체가 실제 판매량보다 낮게 남는다. 위 요약의 order_succeeded와`);
+    console.log(`         재고(${target.total})를 비교할 것. order_succeeded > ${target.total} 이면 오버셀이다.`);
+  }
+
+  // 갱신 손실은 별도 신호다. 정상이라면 reserved == 성공 주문 수여야 한다.
+  if (target.reserved < target.total) {
+    console.log(`[갱신 손실] reserved가 total보다 작다. 성공 주문 수와 비교해 손실량을 확인할 것`);
+  }
 }

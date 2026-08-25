@@ -241,18 +241,44 @@ git revert be79e97                       # 되돌리고 처음부터 하고 싶�
 JPA가 쿼리 전에 auto-flush하기 때문이다(`FlushMode.AUTO`) — 5번 조회가 3·4번을 밀어낸다.
 그리고 전부 롤백된다. 재고 소진 후에는 **모든 요청**이 이 경로다.
 
-> **"롤백을 증명하려면 이 순서여야 한다"와 "운영에서 이 순서가 맞다"는 다른 질문이다.**
-> 검증을 앞으로 되돌려도 롤백 테스트가 의미를 갖게 하려면?
-> → **1번에서 답을 만들어뒀다.** 다중 상품 테스트는 순서와 무관하게 부분 쓰기를 만든다.
-> 이제 서비스를 "검증 먼저 → 쓰기 나중"으로 되돌려도 롤백 검사가 살아 있다.
+**고쳤다 (2026-08-25, 사용자 지시로 Claude가 `modules/`까지 작업).**
+순서를 **읽기 → 검증 → 쓰기**로 되돌렸다. 재고가 모자라 실패하는 요청은
+이제 `orders`/`order_lines`에 INSERT를 내지 않는다.
 
-`OrderPlacementService`는 `backend/modules/**`라 원칙상 사용자 몫이다.
+**되돌린 뒤 롤백 테스트가 여전히 살아 있는지 확인한 것이 핵심이다.**
+`noRollbackFor`를 임시로 붙여 돌렸더니:
 
-**3. `ProductController`가 여전히 `Unit`을 반환한다** — 실측: `200`, 본문 `null`
+| 테스트 | 순서 되돌리기 전 | 되돌린 후 |
+|---|---|---|
+| 재고가 모자라면 409... | FAILED (롤백 검사함) | **PASSED** (쓸 게 없으니 검사 못 함) |
+| 여러 상품 중 하나만... | FAILED | **FAILED** ← 여전히 검사한다 |
 
-404보다 나쁘다. k6 teardown의 `status !== 200` 가드를 통과한 뒤 `res.json()`에서 크래시한다.
-"성공했다"고 거짓말하는 응답은 호출자의 오류 처리를 통째로 무력화한다.
-명세에도 200으로 박혀 나간다.
+단일 상품 테스트는 롤백 검사 능력을 잃었다. **다중 상품 테스트가 그 역할을 넘겨받았다** —
+재고 예약이 상품 단위로 순차 처리되므로 검증을 앞으로 당겨도 부분 쓰기는 없앨 수 없다.
+
+**3. ~~`ProductController`가 `Unit`을 반환한다~~ — 구현 완료 (2026-08-25)**
+
+빈 스텁을 지우고 실제 조회를 붙였다. 조회 포트를 새로 만들었다.
+
+| 파일 | 내용 |
+|---|---|
+| `order-api/ProductCatalog.kt` | `ProductView` + `ProductCatalog` 포트. **읽기 모델은 도메인 `Product`와 다른 타입이다** |
+| `order-core/infrastructure/ProductCatalogAdapter.kt` | `products ⋈ inventories` JPQL 조인. 행 타입은 infrastructure가 소유 |
+| `bootstrap/web/order/ProductController.kt` | `GET /api/products` |
+
+```json
+[{"productId":"p-sneaker","name":"...","unitAmount":10000,
+  "total":50,"reserved":7,"available":43}]
+```
+
+`available`은 필드가 아니라 **계산 프로퍼티**다. `total - reserved`는 언제나 참인 관계이고,
+셋을 다 저장하면 어긋났을 때 무엇이 진실인지 정할 방법이 없다.
+(ADR-0007 후보 "파생값 정합성"과 같은 질문이다)
+
+`left join`이 아니라 `join`이다 — 재고 행이 없는 상품은 목록에서 빠진다.
+`left join`으로 0을 채우면 "재고 없음"과 "재고 행 자체가 없음"이 같아진다. 후자는 데이터 사고다.
+
+**k6 teardown이 살아났고, 살아나자마자 새 고장을 하나 더 찾았다 (아래 5번).**
 
 **4. ~~명세 오염~~ — 고침 (2026-08-25). 범위를 좁혔다**
 
@@ -275,6 +301,30 @@ POST /api/orders     ['201','400','404','409']  → 그대로
 스프링은 어드바이스 빈을 `@Order` 순서로 훑어 먼저 걸리는 것을 쓴다.
 **클래스가 다르면 "더 구체적인 타입" 규칙이 적용되지 않는다** — 순서를 안 주면
 재고 부족이 500으로 나갈 수 있다.
+
+**5. k6 teardown이 오버셀 0건이라고 거짓 보고했다 — 고침 (2026-08-25)**
+
+`GET /api/products`가 살아나자 teardown이 처음으로 실행됐고, 이렇게 찍혔다.
+
+```
+[최종] total=50 reserved=11 available=39
+[오버셀] 0건                              ← 재고 50에 100건이 팔린 실행이다
+```
+
+`oversold = reserved - total`로 판정하고 있었다. **갱신 손실 때문에 `reserved`가
+실제 판매량보다 훨씬 낮게 남으므로, 오버셀을 재려던 눈금이 다른 고장 때문에 망가져 있었다.**
+
+고친 뒤:
+```
+[오버셀] 이 값으로는 판정할 수 없다.
+         reserved(10) <= total(50)이지만, 갱신 손실이 있으면
+         reserved 자체가 실제 판매량보다 낮게 남는다. order_succeeded와 재고를 비교할 것
+[갱신 손실] reserved가 total보다 작다
+```
+
+**판정할 수 없을 때 "이상 없음"이라고 말하지 않는다.** 판정할 수 없다고 말한다.
+`@ExceptionHandler(RuntimeException)`이 5xx를 4xx로 위장했던 것과 같은 종류의 사고다 —
+계측기가 고장 난 채로 초록불이 켜진다.
 
 **사소** — `OrderException.EmptyOrder`는 필드가 없는데 왜 `class`인가
 (`data object`로 못 하는 이유는 있다) · `OrderQuery.findById`의 `@throws`가 정말 하나뿐인가

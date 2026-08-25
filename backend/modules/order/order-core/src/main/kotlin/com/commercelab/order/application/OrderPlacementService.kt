@@ -29,22 +29,38 @@ class OrderPlacementService(
 ) : OrderPlacement {
 
     /**
-     * ## 이전 버전과 무엇이 다른가 (2026-08-24)
+     * ## 실패는 예외로 나간다 — 롤백을 스프링에 맡긴다
      *
-     * 이전에는 이 메서드가 **읽기·계산 구간**과 **쓰기 구간**으로 갈라져 있었다.
-     * 실패를 `DomainResult.failure`로 *반환*했기 때문이다 — 스프링은 예외를 보고
-     * 롤백을 결정하고 반환값은 보지 않으므로, 실패를 반환하면 그때까지 쓴 것이 그대로
-     * 커밋된다. 그래서 "쓰기 전에 모든 검증을 끝낸다"는 규율로 막아야 했다.
+     * 예전에는 실패를 `DomainResult.failure`로 *반환*했다. 스프링은 예외를 보고 롤백을
+     * 결정하고 반환값은 보지 않으므로, 그때는 "쓰기 전에 모든 검증을 끝낸다"는 규율을
+     * 사람이 져야 했다. 지금은 예외라 그 규율이 필요 없다 (M1 §4-2).
      *
-     * 실패가 예외가 된 지금은 그 규율이 필요 없다. **아래 순서를 보라 —
-     * 주문을 먼저 저장하고, 그다음에 재고를 검사한다.** 재고가 모자라면
-     * `Inventory.addReserved`가 `OutOfStock`을 던지고, `@Transactional`이
-     * 이미 저장한 orders/order_lines 행까지 함께 되돌린다.
+     * ## 그런데도 검증을 먼저 하는 이유 (2026-08-25)
      *
-     * 이 순서는 실수가 아니라 **이번 전환이 실제로 동작한다는 증거**다.
-     * `OrderRollbackIntegrationTest`가 정확히 이 경로를 검사한다 —
-     * 409를 받았을 때 orders 테이블이 비어 있는지.
-     * 이전 방식이었다면 여기서 주문 행이 남았을 것이다(실측: 성공 1건인데 orders=2).
+     * 롤백에 기댈 수 있다고 해서 기대야 하는 것은 아니다.
+     * 한때 이 메서드는 **주문을 먼저 저장하고 재고를 나중에 검사**했다.
+     * 롤백이 실제로 도는 것을 보여주려는 의도였는데, 리뷰에서 지적이 나왔고 실측해보니
+     * 409로 끝나는 요청 하나가 이런 SQL을 냈다.
+     *
+     * ```
+     * select products      → select orders(merge) → insert orders → insert order_lines
+     * → select inventories ← 이 조회가 위 INSERT들을 flush시킨다 (FlushMode.AUTO)
+     * ```
+     *
+     * **INSERT가 영속성 컨텍스트에만 머무는 게 아니라 실제로 DB에 도달한 뒤 롤백된다.**
+     * 롤백된 INSERT도 WAL을 쓰고 죽은 튜플을 남겨 autovacuum이 치워야 한다.
+     * 재고가 소진된 뒤에는 **모든 요청**이 이 경로를 탄다.
+     *
+     * 그래서 순서를 되돌렸다. **읽고 → 검증하고 → 쓴다.**
+     * 롤백은 여전히 안전망이지만, 일상적으로 밟는 길이 아니다.
+     *
+     * ## 그럼 롤백은 무엇이 증명하나
+     *
+     * 이 순서로도 부분 쓰기는 남는다. 재고 예약이 **상품 단위로 순차 처리**되기 때문이다 —
+     * 라인이 둘이면 앞 상품의 `reserved`를 올린 뒤 뒤 상품에서 `OutOfStock`이 날 수 있다.
+     * `OrderRollbackIntegrationTest`의 `여러 상품 중 하나만 재고가 모자라면...`이 그 경로다.
+     * 검증을 아무리 앞으로 당겨도 이 부분 쓰기는 없앨 수 없으므로,
+     * **롤백 테스트는 이 메서드의 순서가 어떻게 바뀌든 계속 의미를 갖는다.**
      *
      * 버린 대안: `TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()`.
      * 스프링 내부 API가 애플리케이션 서비스에 들어오고, 예외를 쓰면 애초에 필요가 없다.
@@ -80,9 +96,6 @@ class OrderPlacementService(
             now = Instant.now(),
         )
 
-        // 재고 검사보다 먼저 쓴다. 위 KDoc 참고 — 실패하면 롤백된다.
-        orderRepository.save(order)
-
         // 같은 상품이 여러 라인에 나뉘어 들어올 수 있다(예: 같은 상품 2줄).
         // 라인마다 따로 재고를 읽으면 두 번 모두 같은 값을 보고 각자 검사를 통과한다 —
         // 한 주문 안에서 오버셀이 나는 셈이다. 상품 단위로 합쳐서 한 번만 검사한다.
@@ -94,6 +107,10 @@ class OrderPlacementService(
             val inventory = inventoryRepository.findByProductId(productId)
             inventoryRepository.updateReserveQuantity(inventory.addReserved(quantity))
         }
+
+        // 검증이 다 끝난 뒤에 쓴다. 재고가 모자라 실패하는 요청은
+        // orders / order_lines 에 INSERT를 내지 않는다.
+        orderRepository.save(order)
 
         return PlaceOrder(
             orderId = order.orderId,
