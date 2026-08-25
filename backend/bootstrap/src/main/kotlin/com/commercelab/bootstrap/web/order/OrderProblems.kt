@@ -60,6 +60,14 @@ fun OrderException.toProblemDetail(): ProblemDetail = when (this) {
         setProperty("to", to.name)
     }
 
+    // 상품은 있는데 지금 팔 수 없는 상태다. 다시 활성화되면 같은 요청이 성공한다.
+    is OrderException.ProductInactive -> problem(
+        status = HttpStatus.CONFLICT,
+        type = "product-inactive",
+        title = "판매 중지된 상품",
+        detail = "상품 ${productId}은(는) 현재 판매하지 않습니다.",
+    ) { setProperty("productId", productId) }
+
     // 404 — 자원이 없다.
     is OrderException.ProductNotFound -> problem(
         status = HttpStatus.NOT_FOUND,

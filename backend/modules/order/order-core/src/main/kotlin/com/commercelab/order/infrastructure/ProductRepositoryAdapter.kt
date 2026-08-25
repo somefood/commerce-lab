@@ -16,6 +16,7 @@ class ProductRepositoryAdapter(
 private fun ProductEntity.toDomain(): Product {
     return Product(
         id = id,
-        unitAmount = Money.of(unitAmount)
+        unitAmount = Money.of(unitAmount),
+        active = active,
     )
 }

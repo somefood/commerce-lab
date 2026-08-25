@@ -9,6 +9,7 @@ import com.commercelab.order.domain.Order
 import com.commercelab.order.domain.OrderLine
 import com.commercelab.order.domain.OrderRepository
 import com.commercelab.order.domain.ProductRepository
+import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 import org.springframework.stereotype.Service
@@ -26,6 +27,9 @@ class OrderPlacementService(
     private val orderRepository: OrderRepository,
     private val productRepository: ProductRepository,
     private val inventoryRepository: InventoryRepository,
+    // 시간을 주입받는다. Instant.now()를 직접 부르면 3단계 만료 테스트가
+    // "만료 3초 전" 같은 시점을 만들 수 없다. 빈 설명은 bootstrap의 ClockConfig에.
+    private val clock: Clock,
 ) : OrderPlacement {
 
     /**
@@ -80,20 +84,16 @@ class OrderPlacementService(
         val orderLines = command.lines.map { line ->
             val product = products[line.productId]
                 ?: throw OrderException.ProductNotFound(line.productId)
-            OrderLine(
-                productId = line.productId,
-                quantity = line.quantity,
-                unitAmount = product.unitAmount,
-            )
+            // 라인 조립을 도메인에 맡긴다. 비활성 상품 검사가 그 안에 있다 —
+            // 서비스가 검사를 기억해야 하는 구조는 언젠가 잊힌다.
+            product.lineFor(line.quantity)
         }
 
         val order = Order.place(
             orderId = UUID.randomUUID().toString(),
             accountId = command.accountId,
             lines = orderLines,
-            // TODO(2단계 전): Clock을 주입받아 Instant.now(clock)으로 바꾼다.
-            //  3단계 만료 테스트는 "만료 3초 전" 같은 시점을 만들어야 하는데 지금은 고정할 수 없다.
-            now = Instant.now(),
+            now = Instant.now(clock),
         )
 
         // 같은 상품이 여러 라인에 나뉘어 들어올 수 있다(예: 같은 상품 2줄).
@@ -104,7 +104,11 @@ class OrderPlacementService(
             .mapValues { (_, lines) -> lines.sumOf { it.quantity } }
 
         requestedByProduct.forEach { (productId, quantity) ->
+            // 포트는 "없다"는 사실만 돌려준다. 그것이 실패인지는 여기서 정한다.
+            // 상품은 찾았는데 재고 행이 없다면 products와 inventories가 어긋난 것이다.
+            // 사용자가 고칠 수 있는 일이 아니므로 OrderException이 아니라 사고로 던진다 → 500.
             val inventory = inventoryRepository.findByProductId(productId)
+                ?: error("상품은 있는데 재고 행이 없다: $productId")
             inventoryRepository.updateReserveQuantity(inventory.addReserved(quantity))
         }
 

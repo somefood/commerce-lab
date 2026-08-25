@@ -195,13 +195,32 @@ git revert be79e97                       # 되돌리고 처음부터 하고 싶�
 읽을 때 볼 것: **대안과 결과 절.** 결정만 적힌 ADR은 코드를 읽으면 알 수 있는 걸
 반복하는 것이라 값어치가 없다. 그 두 절이 부실하면 고쳐달라고 말할 것.
 
-#### C. §13-1의 "2단계 전에 정리할 빚" — 7건 + 1건
+#### C. §13-1의 "2단계 전에 정리할 빚" — **6건 완료, 1건은 2단계로 (2026-08-25)**
 
-락을 넣는 순간 문제가 되는 것들이다. 목록은 [M1 §13-1](./milestones/M1-order-core.md).
-아래 "미해결 지적" 표와 같은 내용이다.
+| 빚 | 처리 |
+|---|---|
+| `Clock` 주입 | `bootstrap/config/ClockConfig.kt` 신설, 서비스가 `Instant.now(clock)` |
+| `Product.active` | 도메인에 필드 추가 + `Product.lineFor()`가 강제. 새 예외 `ProductInactive` → 409 |
+| `Product.id` 기본값 | `UUID.randomUUID()` 제거 |
+| `merge()` SELECT | `OrderEntity`가 `Persistable<String>` 구현 |
+| `OrderLineRepository` ID 타입 | `String` → `Long` |
+| `findByProductId`의 예외 | 포트가 `Inventory?`를 반환. 실패 판정은 application이 |
+| `InventoryEntity.version`에 `@Version` | **안 함.** 낙관적 락이냐 조건부 UPDATE냐가 ADR-0003 주제다. 2단계에서 결정 |
 
-락과 직접 엮인 것부터 하면 순서가 자연스럽다.
-`InventoryEntity.version`에 `@Version` → `Clock` 주입 → 나머지.
+덤으로 하나 더 찾았다 — `findByProductId`는 **파생 쿼리라 영속성 컨텍스트를 건너뛴다.**
+조회와 갱신이 각각 파생 쿼리를 쓰는 바람에 `select inventories`가 두 번 나갔다.
+`findById`로 바꾸니 1차 캐시를 타서 한 번이 된다.
+
+**주문 1건이 내는 SQL: 7개 → 5개**
+
+```
+이전:  select products · select orders(merge) · insert orders · insert order_lines
+       · select inventories · select inventories · update inventories
+지금:  select products · select inventories · insert orders · insert order_lines
+       · update inventories
+```
+
+**그런데 TPS는 안 움직였다.** 아래 참고.
 
 #### D. ~~Claude에게 리뷰 요청~~ — 완료 (2026-08-25). **여기서 나온 4건이 다음 작업이다**
 
@@ -335,6 +354,43 @@ POST /api/orders     ['201','400','404','409']  → 그대로
 
 ---
 
+### SQL을 줄였는데 TPS가 안 올랐다 (2026-08-25)
+
+주문 1건당 SQL을 7개에서 5개로 줄였다. **처리량은 그대로다.**
+
+| | 정리 전 | 정리 후 (3회) |
+|---|---|---|
+| TPS | 845.5/s | 831 / 857 / 873 → 평균 ~854 |
+| p95 | 143.67ms | 148.5 / 144.0 / 139.8 |
+| p99 | 164.39ms | 177.7 / 163.7 / 158.1 |
+
+노이즈 범위 안이다. **왕복 횟수가 병목이 아니었다.**
+VU 100개가 전부 같은 상품 한 행을 UPDATE한다 — 그 행의 쓰기 락에 줄을 서는 것이
+지배적이고, SELECT 두 번은 그 옆에서 묻힌다.
+
+가치가 없었다는 뜻은 아니다. 2단계에서 낙관적 락을 켜면 **재시도가 트랜잭션을 통째로
+다시 돌린다.** 그때는 트랜잭션 안의 왕복 하나하나가 재시도 횟수만큼 곱해진다.
+지금 줄여둔 것이 그때 값을 한다. 다만 **지금 당장의 이득으로 계산하면 안 된다.**
+
+> 예상하고 재봤더니 아니었다. 이런 것도 기록해야 한다 —
+> "SQL을 줄였으니 빨라졌겠지"를 재보지 않고 넘어가면 그게 다음 사람의 오해가 된다.
+
+#### ⚠ k6의 `iterations ... /s`를 TPS로 쓰면 안 된다
+
+그 값의 분모는 **setup + 시나리오 + teardown 전체 시간**이다.
+`GET /api/products`가 살아나면서 teardown이 실제로 돌기 시작했고,
+setup의 dev/reset도 이전 실행에서 쌓인 주문 2만여 건을 지우느라 길어졌다.
+
+```
+총 실행 48.2초 (시나리오는 30초)
+요약 표시   542/s        ← 틀렸다
+실제        26,127 / 30s = 871/s
+```
+
+처음엔 이 값을 그대로 읽고 "TPS가 845 → 825로 떨어졌다"고 잘못 봤다.
+**TPS = `iterations` 개수 ÷ 시나리오 duration**으로 직접 계산할 것.
+k6 스크립트에도 경고를 달아뒀다.
+
 ### 그다음 (2단계)
 
 `@Version` 낙관적 락 + 재시도 → M1 §8 표 2행.
@@ -377,16 +433,9 @@ docker run --rm -i --network host grafana/k6 run \
 
 | 심각도 | 위치 | 내용 |
 |---|---|---|
-| 중요 | `OrderPlacementService` | `Instant.now()` 직접 호출. 3단계 만료 테스트에서 시점을 고정할 수 없다 |
-| 중요 | `domain/Product.kt` | `active` 없음. DDL 주석이 "도메인이 강제한다"고 선언한 규칙이 들어갈 자리가 없다 |
-| 중요 | `domain/Product.kt` | `id`에 `UUID.randomUUID()` 기본값. DB에서 읽는 값에 기본값이 필요한가 |
-| 중요 | `OrderRepositoryAdapter.save` | 직접 채운 `@Id` → Spring Data가 `merge()` → INSERT 앞에 SELECT가 한 번 더 |
-| 중요 | `OrderLineRepository` | `JpaRepository<_, String>`인데 `@Id`는 `Long?` |
-| 중요 | `InventoryEntity.version` | `@Version`이 없다. 지금은 그냥 정수 컬럼 |
-| 중요 | `InventoryRepository.findByProductId` | 재고 행이 없으면 `IllegalArgumentException` → 500 (실측으로 확인함) |
-| 중요 | `bootstrap/.../ProductController` | 빈 스텁이 `Unit`을 반환 → **200 + 빈 본문**. k6 teardown이 `status !== 200` 가드를 통과한 뒤 `res.json()`에서 크래시한다. 404보다 고약하다 — 호출자의 오류 처리를 무력화한다 |
-| 사소 | `PlaceOrder.reservations` | 3단계 전까지 `emptyList()`. TODO 주석은 달아둠 |
-| 사소 | 여러 파일 | 파일 끝 개행 없음 |
+| 중요 | `InventoryEntity.version` | `@Version`이 없다. **2단계로 미룸** — 낙관적 락이냐 조건부 UPDATE냐가 ADR-0003 주제다. `OrderRepositoryAdapter`가 `version = 1`을 하드코딩하는 것도 같이 본다 |
+
+나머지는 2026-08-25에 전부 처리했다. 위 "C" 표 참고.
 
 ### Claude가 할 일
 

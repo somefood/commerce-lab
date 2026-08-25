@@ -53,6 +53,13 @@ export const options =
           // 참고용. 넘겨도 실행은 계속된다 — 수치를 보는 것이 목적이다
           http_req_duration: ['p(95)<1000', 'p(99)<2000'],
         },
+        // ⚠ TPS는 요약의 `iterations ... /s` 를 그대로 쓰면 안 된다.
+        // 그 값의 분모는 setup + 시나리오 + teardown 전체 시간이다.
+        // setup의 dev/reset이 이전 실행에서 쌓인 주문을 지우느라 길어지면
+        // 시나리오는 그대로인데 TPS만 떨어진 것처럼 보인다.
+        // 실측(2026-08-25): 총 48.2초 중 시나리오는 30초.
+        //   요약 표시 542/s  vs  실제 26,127 / 30s = 871/s
+        // **TPS = iterations 개수 ÷ 아래 duration** 으로 직접 계산할 것.
       };
 
 export function setup() {

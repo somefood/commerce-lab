@@ -69,6 +69,17 @@ sealed class OrderException(message: String) : RuntimeException(message, null, f
         val to: OrderStatus,
     ) : OrderException("허용되지 않는 상태 전이: $from -> $to")
 
+    /**
+     * 판매 중지된 상품이다 → 409
+     *
+     * 404가 아닌 이유: 상품은 존재한다. 지금 상태가 요청과 맞지 않을 뿐이고,
+     * 다시 활성화되면 같은 요청이 성공한다. 그게 409의 뜻이다.
+     * 400도 아니다 — 요청 자체는 멀쩡하다.
+     */
+    class ProductInactive(
+        val productId: String,
+    ) : OrderException("판매 중지된 상품: $productId")
+
     /** 상품이 없다 → 404 */
     class ProductNotFound(
         val productId: String,
@@ -85,6 +96,15 @@ sealed class OrderException(message: String) : RuntimeException(message, null, f
         val quantity: Int,
     ) : OrderException("잘못된 수량: product=$productId quantity=$quantity")
 
-    /** 라인이 하나도 없다 → 400 */
+    /**
+     * 라인이 하나도 없다 → 400
+     *
+     * 필드가 없는데 `data object`가 아닌 이유:
+     * `object`로 만들면 모든 요청이 **같은 예외 인스턴스 하나**를 던진다.
+     * `Throwable`은 `cause`와 `suppressed`를 나중에 붙일 수 있는 가변 객체라,
+     * 어디선가 `initCause`를 부르거나 스택트레이스를 다시 켜는 순간
+     * 요청 사이로 상태가 샌다. 객체 하나 아끼자고 낼 위험이 아니다.
+     * (같은 이유로 [ReservationAlreadySettled]도 `data object`에서 클래스로 바꿨다)
+     */
     class EmptyOrder : OrderException("주문 항목이 하나도 없음")
 }
