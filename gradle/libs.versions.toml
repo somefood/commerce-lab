@@ -1,0 +1,25 @@
+# ============================================================
+# 버전 카탈로그 (Version Catalog)
+# 프로젝트 전체의 라이브러리/플러그인 버전을 한 곳에서 관리한다.
+# 각 모듈의 build.gradle.kts에서는 libs.plugins.xxx 로 참조.
+# → 모듈이 10개가 되어도 버전 올릴 땐 이 파일 한 곳만 수정하면 된다.
+# ============================================================
+
+[versions]
+kotlin = "2.3.21"
+spring-boot = "4.1.1"
+
+[libraries]
+# Spring Boot BOM: 스프링 생태계 라이브러리들의 호환 버전 세트.
+# 각 모듈에서 platform(libs.spring.boot.bom) 으로 import 하면
+# 개별 스프링 의존성에 버전을 안 적어도 된다.
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+# plugin.spring: 스프링 애노테이션(@Service 등)이 붙은 클래스를 자동으로 open 처리
+# (Kotlin 클래스는 기본이 final인데, 스프링 프록시는 상속이 필요하기 때문)
+kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+# plugin.jpa: JPA 엔티티에 필수인 기본 생성자(no-arg constructor)를 자동 생성
+kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

@@ -1,0 +1,31 @@
+# ============================================================
+# 로컬 개발 설정. (배포 환경 설정은 Phase 7에서 프로파일로 분리한다)
+# ============================================================
+spring:
+  datasource:
+    # 인메모리 H2 — 앱을 재시작하면 데이터가 사라진다. 학습 초반엔 이게 편하다.
+    url: jdbc:h2:mem:commercelab
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      # create-drop: 앱 시작 시 엔티티 기준으로 테이블 생성, 종료 시 삭제.
+      # ⚠️ 실무 운영 환경에서는 절대 금지 (validate + 마이그레이션 도구 사용).
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: true # 학습용: JPA가 실제로 날리는 SQL을 눈으로 확인한다
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console # 브라우저에서 DB 내용 확인: http://localhost:8080/h2-console
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
