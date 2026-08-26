@@ -53,14 +53,14 @@
 
 ### 수용 기준 (이걸 만족하면 리뷰 요청)
 
-- [ ] 위 5개 API가 스펙대로 동작 (curl 또는 IntelliJ HTTP Client로 확인)
-- [ ] `domain/` 패키지에 스프링/JPA import가 하나도 없다
-- [ ] `ProductService`는 JPA 클래스를 모른다 (port/out 인터페이스만 사용)
-- [ ] 검증 실패 시 400과 함께 무엇이 잘못됐는지 메시지가 내려간다
-- [ ] 테스트 최소 2개:
+- [x] 위 5개 API가 스펙대로 동작 (curl 또는 IntelliJ HTTP Client로 확인)
+- [x] `domain/` 패키지에 스프링/JPA import가 하나도 없다
+- [x] `ProductService`는 JPA 클래스를 모른다 (port/out 인터페이스만 사용)
+- [x] 검증 실패 시 400과 함께 무엇이 잘못됐는지 메시지가 내려간다
+- [x] 테스트 최소 2개:
   - `ProductService` 단위 테스트 — **DB 없이** (port/out을 페이크 구현으로 대체)
   - API 통합 테스트 1개 (`@SpringBootTest` + MockMvc, 등록→조회 시나리오)
-- [ ] 커밋을 의미 단위로 쪼갤 것 (예: 도메인 → 애플리케이션 → 어댑터)
+- [x] 커밋을 의미 단위로 쪼갤 것 (예: 도메인 → 애플리케이션 → 어댑터)
 
 ### 시작을 위한 최소 힌트
 
