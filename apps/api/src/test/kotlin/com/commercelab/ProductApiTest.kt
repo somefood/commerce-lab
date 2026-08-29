@@ -51,4 +51,38 @@ class ProductApiTest {
             .andExpect(status().isBadRequest)
             .andReturn()
     }
+
+    @Test
+    fun `상품명이 100자를 넘으면 등록할 수 없다`() {
+        val longName = "가".repeat(101)
+
+        mockMvc.perform(
+            post("/api/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"$longName","price":29000,"stockQuantity":10}""")
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `재고가 부족하면 차감할 수 없다`() {
+        val result = mockMvc.perform(
+            post("/api/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"상품1","price":29000,"stockQuantity":10}""")
+        )
+            .andExpect(status().isCreated)
+            .andReturn()
+
+        val location = result.response.getHeader("Location")!!
+        val id = location.substringAfterLast("/")
+
+        mockMvc.perform(
+            post("/api/products/$id/stock")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"quantity":-11}""")
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.message").value("수량은 0 미만이 될 수 없습니다. 현재 수량=10"))
+    }
 }
