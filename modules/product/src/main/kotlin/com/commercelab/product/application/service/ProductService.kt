@@ -1,10 +1,10 @@
 package com.commercelab.product.application.service
 
-import com.commercelab.product.adapter.`in`.web.ProductCreateRequest
-import com.commercelab.product.adapter.`in`.web.ProductEditRequest
 import com.commercelab.product.application.port.`in`.DeleteProductUseCase
+import com.commercelab.product.application.port.`in`.EditProductCommand
 import com.commercelab.product.application.port.`in`.EditProductUseCase
 import com.commercelab.product.application.port.`in`.GetProductQuery
+import com.commercelab.product.application.port.`in`.RegisterProductCommand
 import com.commercelab.product.application.port.`in`.RegisterProductUseCase
 import com.commercelab.product.application.port.out.ProductRepository
 import com.commercelab.product.domain.Product
@@ -15,12 +15,12 @@ class ProductService(
     private val productRepository: ProductRepository
 ) : RegisterProductUseCase, GetProductQuery, EditProductUseCase, DeleteProductUseCase {
 
-    override fun registerProduct(createRequest: ProductCreateRequest): Product {
+    override fun registerProduct(registerProductCommand: RegisterProductCommand): Product {
         val product = Product.create(
-            name = createRequest.name,
-            price = createRequest.price,
-            description = createRequest.description,
-            stockQuantity = createRequest.stockQuantity
+            name = registerProductCommand.name,
+            price = registerProductCommand.price,
+            description = registerProductCommand.description,
+            stockQuantity = registerProductCommand.stockQuantity
         )
         return productRepository.save(product)
     }
@@ -35,18 +35,23 @@ class ProductService(
 
     override fun editProduct(
         id: Long,
-        editRequest: ProductEditRequest
+        editRequest: EditProductCommand
     ) {
-        val apply = productRepository.findById(id)?.apply {
-            copy(name = name, description = description, price = price, stockQuantity = stockQuantity)
-        }
-        productRepository.save(apply!!)
+        val product = productRepository.findById(id) ?: throw NoSuchElementException("Product not found")
+
+        val editedProduct = product.copy(
+            name = editRequest.name,
+            description = editRequest.description,
+            price = editRequest.price,
+            stockQuantity = editRequest.stockQuantity
+        )
+        productRepository.save(editedProduct)
     }
 
     override fun deleteProduct(id: Long) {
-        val findById = productRepository.findById(id)
-        findById?.deactivate()
-        productRepository.save(findById!!)
+        val product = productRepository.findById(id) ?: throw NoSuchElementException("Product not found")
+        val deactivatedProduct = product.deactivate()
+        productRepository.save(deactivatedProduct)
     }
 }
 

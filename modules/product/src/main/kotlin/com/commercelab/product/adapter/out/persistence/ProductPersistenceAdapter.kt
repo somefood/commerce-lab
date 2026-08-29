@@ -2,7 +2,6 @@ package com.commercelab.product.adapter.out.persistence
 
 import com.commercelab.product.application.port.out.ProductRepository
 import com.commercelab.product.domain.Product
-import com.commercelab.product.domain.ProductStatus
 import org.springframework.stereotype.Repository
 import kotlin.jvm.optionals.getOrNull
 
@@ -18,14 +17,8 @@ class ProductPersistenceAdapter(
     }
 
     override fun findById(id: Long): Product? {
-        val orNull = productJpaRepository.findById(id)
-            .getOrNull()
-
-        if (orNull == null) {
-            return orNull
-        }
-
-        return orNull.toDomain()
+        return productJpaRepository.findById(id)
+            .getOrNull<ProductJpaEntity>()?.toDomain()
     }
 
     override fun findAll(): List<Product> {
@@ -40,7 +33,7 @@ fun Product.toEntity(): ProductJpaEntity {
         price = price,
         description = description,
         stockQuantity = stockQuantity,
-        status = status.name
+        status = status
     )
 }
 
@@ -51,6 +44,6 @@ fun ProductJpaEntity.toDomain(): Product {
         price = price,
         description = description,
         stockQuantity = stockQuantity,
-        status = ProductStatus.valueOf(status)
+        status = status
     )
 }

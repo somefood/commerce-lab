@@ -4,7 +4,7 @@ data class Product(
     val id: Long?,
     val name: String,
     val price: Long,
-    val description: String,
+    val description: String?,
     val stockQuantity: Int,
     val status: ProductStatus
 ) {
@@ -17,7 +17,7 @@ data class Product(
         fun create(
             name: String,
             price: Long,
-            description: String,
+            description: String?,
             stockQuantity: Int
         ): Product =
             Product(null, name, price, description, stockQuantity, ProductStatus.ACTIVE)

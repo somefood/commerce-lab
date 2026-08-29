@@ -5,6 +5,7 @@ import com.commercelab.product.application.port.`in`.EditProductUseCase
 import com.commercelab.product.application.port.`in`.GetProductQuery
 import com.commercelab.product.application.port.`in`.RegisterProductUseCase
 import com.commercelab.product.domain.Product
+import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -24,28 +25,28 @@ class ProductController(
 ) {
 
     @PostMapping("/api/products")
-    fun createProduct(@RequestBody createRequest: ProductCreateRequest): ResponseEntity<Nothing> {
-        val product = registerProductUseCase.registerProduct(createRequest)
+    fun createProduct(@Valid @RequestBody createRequest: ProductCreateRequest): ResponseEntity<ProductCreateResponse> {
+        val product = registerProductUseCase.registerProduct(createRequest.toRegisterProductCommand())
         return ResponseEntity
             .created(URI("/api/products/${product.id}"))
-            .build()
+            .body(ProductCreateResponse.from(product))
     }
 
     @GetMapping("/api/products/{id}")
-    fun getProduct(@PathVariable("id") id: Long): ResponseEntity<Product> {
+    fun getProduct(@PathVariable id: Long): ResponseEntity<ProductResponse> {
         val product = getProductQuery.getProduct(id)
-        return ResponseEntity.ok(product)
+        return ResponseEntity.ok(ProductResponse.from(product))
     }
 
     @GetMapping("/api/products")
-    fun getProducts(): ResponseEntity<List<Product>> {
+    fun getProducts(): ResponseEntity<ProductListResponse> {
         val products = getProductQuery.getAllProducts()
-        return ResponseEntity.ok(products)
+        return ResponseEntity.ok(ProductListResponse.from(products))
     }
 
     @PutMapping("/api/products/{id}")
     fun editProduct(@PathVariable id: Long, @RequestBody editRequest: ProductEditRequest): ResponseEntity<Nothing> {
-        editProductUseCase.editProduct(id, editRequest)
+        editProductUseCase.editProduct(id, editRequest.toEditProductCommand())
         return ResponseEntity.ok().build()
     }
 
