@@ -1,9 +1,9 @@
 package com.commercelab.product.application.service
 
-import com.commercelab.product.adapter.`in`.web.ProductCreateRequest
-import com.commercelab.product.application.port.out.ProductRepository
-import org.assertj.core.api.Assertions
-import org.junit.jupiter.api.Assertions.*
+import com.commercelab.product.application.port.`in`.EditProductCommand
+import com.commercelab.product.domain.ProductFixture
+import com.commercelab.product.domain.ProductStatus
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -20,15 +20,37 @@ class ProductServiceTest {
 
     @Test
     fun `상품을 등록한다`() {
-        val productCreateRequest = ProductCreateRequest(
-            name = "상품1",
-            price = 1000,
+        val registerProduct = productService.registerProduct(ProductFixture.createRequestCommand())
+
+        assertThat(registerProduct.id).isNotNull
+    }
+
+    @Test
+    fun `상품을 수정한다`() {
+        val registerProduct = productService.registerProduct(ProductFixture.createRequestCommand())
+
+        val editProductCommand = EditProductCommand(
+            name = "수정상품1",
+            price = 2000,
             description = "상품1 설명",
             stockQuantity = 10
         )
 
-        val registerProduct = productService.registerProduct(productCreateRequest)
+        productService.editProduct(registerProduct.id!!, editProductCommand)
 
-        Assertions.assertThat { registerProduct.id }.isNotNull
+        val product = productService.getProduct(registerProduct.id)
+
+        assertThat(product.name).isEqualTo("수정상품1")
+        assertThat(product.price).isEqualTo(2000)
+    }
+
+    @Test
+    fun `상품을 삭제하면 판매중지 상태가 된다`() {
+        val registerProduct = productService.registerProduct(ProductFixture.createRequestCommand())
+
+        productService.deleteProduct(registerProduct.id!!)
+
+        val product = productService.getProduct(registerProduct.id)
+        assertThat(product.status).isEqualTo(ProductStatus.INACTIVE)
     }
 }
