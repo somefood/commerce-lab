@@ -34,6 +34,14 @@ class ProductApiTest {
     }
 
     @Test
+    fun `존재하지 않은 상품을 검색할 수 없다`() {
+        mockMvc.perform(
+            get("/api/products/1000")
+        )
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
     fun `상품등록 시 음수는 입력되면 안된다`() {
         mockMvc.perform(
             post("/api/products")
