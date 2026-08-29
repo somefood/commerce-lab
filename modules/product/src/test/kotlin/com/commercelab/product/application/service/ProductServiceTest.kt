@@ -6,6 +6,7 @@ import com.commercelab.product.domain.ProductStatus
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
 
 class ProductServiceTest {
 
@@ -41,6 +42,16 @@ class ProductServiceTest {
 
         assertThat(product.name).isEqualTo("수정상품1")
         assertThat(product.price).isEqualTo(2000)
+    }
+
+    @Test
+    fun `상품 재고를 변경한다`() {
+        val registerProduct = productService.registerProduct(ProductFixture.createRequestCommand())
+
+        productService.adjustStock(registerProduct.id!!, 100)
+
+        val product = productService.getProduct(registerProduct.id)
+        assertThat(product.stockQuantity).isEqualTo(200)
     }
 
     @Test

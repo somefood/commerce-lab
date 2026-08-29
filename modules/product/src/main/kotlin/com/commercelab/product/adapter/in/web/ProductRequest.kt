@@ -34,3 +34,7 @@ data class ProductEditRequest(
     }
 }
 
+data class AdjustStockRequest(
+    val quantity: Int
+)
+

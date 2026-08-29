@@ -1,5 +1,6 @@
 package com.commercelab.product.adapter.`in`.web
 
+import com.commercelab.product.application.port.`in`.AdjustStockUseCase
 import com.commercelab.product.application.port.`in`.DeleteProductUseCase
 import com.commercelab.product.application.port.`in`.EditProductUseCase
 import com.commercelab.product.application.port.`in`.GetProductQuery
@@ -21,6 +22,7 @@ class ProductController(
     private val registerProductUseCase: RegisterProductUseCase,
     private val getProductQuery: GetProductQuery,
     private val editProductUseCase: EditProductUseCase,
+    private val adjustStockUseCase: AdjustStockUseCase,
     private val deleteProductUseCase: DeleteProductUseCase,
 ) {
 
@@ -47,6 +49,12 @@ class ProductController(
     @PutMapping("/api/products/{id}")
     fun editProduct(@PathVariable id: Long, @RequestBody editRequest: ProductEditRequest): ResponseEntity<Nothing> {
         editProductUseCase.editProduct(id, editRequest.toEditProductCommand())
+        return ResponseEntity.ok().build()
+    }
+
+    @PostMapping("/api/products/{id}/stock")
+    fun adjustStockQuantity(@PathVariable id: Long, @RequestBody adjustStockRequest: AdjustStockRequest): ResponseEntity<Nothing> {
+        adjustStockUseCase.adjustStock(id, adjustStockRequest.quantity)
         return ResponseEntity.ok().build()
     }
 

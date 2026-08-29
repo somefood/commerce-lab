@@ -24,6 +24,11 @@ data class Product(
     }
 
     fun deactivate(): Product = copy(status = ProductStatus.INACTIVE)
+
+    fun adjustStockQuantity(quantity: Int): Product {
+        if (stockQuantity + quantity < 0) throw IllegalArgumentException("수량은 0 미만이 될 수 없습니다. 현재 수량=${stockQuantity}")
+        return copy(stockQuantity = stockQuantity + quantity)
+    }
 }
 
 enum class ProductStatus { ACTIVE, INACTIVE }

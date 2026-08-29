@@ -1,5 +1,6 @@
 package com.commercelab.product.application.service
 
+import com.commercelab.product.application.port.`in`.AdjustStockUseCase
 import com.commercelab.product.application.port.`in`.DeleteProductUseCase
 import com.commercelab.product.application.port.`in`.EditProductCommand
 import com.commercelab.product.application.port.`in`.EditProductUseCase
@@ -13,7 +14,7 @@ import org.springframework.stereotype.Service
 @Service
 class ProductService(
     private val productRepository: ProductRepository
-) : RegisterProductUseCase, GetProductQuery, EditProductUseCase, DeleteProductUseCase {
+) : RegisterProductUseCase, GetProductQuery, EditProductUseCase, AdjustStockUseCase, DeleteProductUseCase {
 
     override fun registerProduct(registerProductCommand: RegisterProductCommand): Product {
         val product = Product.create(
@@ -45,6 +46,11 @@ class ProductService(
             price = editRequest.price,
         )
         productRepository.save(editedProduct)
+    }
+
+    override fun adjustStock(productId: Long, amount: Int) {
+        val product = productRepository.findById(productId) ?: throw NoSuchElementException("Product not found")
+        productRepository.save(product.adjustStockQuantity(amount))
     }
 
     override fun deleteProduct(id: Long) {
