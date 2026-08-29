@@ -43,7 +43,6 @@ class ProductService(
             name = editRequest.name,
             description = editRequest.description,
             price = editRequest.price,
-            stockQuantity = editRequest.stockQuantity
         )
         productRepository.save(editedProduct)
     }

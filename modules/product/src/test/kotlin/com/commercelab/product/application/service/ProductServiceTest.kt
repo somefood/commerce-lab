@@ -33,7 +33,6 @@ class ProductServiceTest {
             name = "수정상품1",
             price = 2000,
             description = "상품1 설명",
-            stockQuantity = 10
         )
 
         productService.editProduct(registerProduct.id!!, editProductCommand)

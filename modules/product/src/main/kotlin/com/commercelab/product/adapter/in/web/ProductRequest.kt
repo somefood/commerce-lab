@@ -28,10 +28,9 @@ data class ProductEditRequest(
     val name: String,
     val price: Long,
     val description: String?,
-    val stockQuantity: Int
 ) {
     fun toEditProductCommand(): EditProductCommand {
-        return EditProductCommand(name, price, description, stockQuantity)
+        return EditProductCommand(name, price, description)
     }
 }
 

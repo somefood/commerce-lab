@@ -13,5 +13,4 @@ data class EditProductCommand(
     val name: String,
     val price: Long,
     val description: String?,
-    val stockQuantity: Int
 )
