@@ -37,6 +37,7 @@ commerce-lab/
 │   ├── CURRICULUM.md            # 단계별 학습 로드맵
 │   ├── GLOSSARY.md              # 이커머스 용어 사전
 │   ├── kotlin-guide/            # Kotlin 문법/패턴 가이드
+│   ├── learning/                # Phase별 학습 노트 (면접 대비 겸용)
 │   └── assignments/             # 팀장이 내주는 과제들
 └── gradle/libs.versions.toml    # 의존성 버전 카탈로그
 ```
