@@ -4,6 +4,7 @@ import com.commercelab.member.application.port.`in`.RegisterMemberCommand
 import com.commercelab.member.application.port.out.MemberRepository
 import com.commercelab.member.domain.PasswordHasher
 import com.commercelab.member.domain.DuplicateEmailException
+import com.commercelab.member.domain.FakePasswordHasher
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -27,6 +28,7 @@ class MemberServiceTest {
         val member = memberService.registerCustomerMember(RegisterMemberCommand("a@a.com", "12345678", "주서콩"))
 
         assertThat(member.id).isNotNull
+        assertThat(member.hashedPassword.value).isEqualTo("hashed:12345678")
     }
 
     @Test

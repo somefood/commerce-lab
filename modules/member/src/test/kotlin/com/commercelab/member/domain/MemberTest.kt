@@ -1,6 +1,5 @@
 package com.commercelab.member.domain
 
-import com.commercelab.member.application.service.FakePasswordHasher
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
