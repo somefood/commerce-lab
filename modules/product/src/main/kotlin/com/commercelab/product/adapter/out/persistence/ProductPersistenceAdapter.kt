@@ -28,7 +28,6 @@ class ProductPersistenceAdapter(
 
 fun Product.toEntity(): ProductJpaEntity {
     return ProductJpaEntity(
-        id = id,
         name = name,
         price = price,
         description = description,

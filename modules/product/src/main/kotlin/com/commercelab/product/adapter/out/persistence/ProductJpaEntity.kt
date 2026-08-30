@@ -10,14 +10,16 @@ import jakarta.persistence.Id
 
 @Entity
 class ProductJpaEntity(
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long?,
-    val name: String,
-    val price: Long,
-    val description: String?,
-    val stockQuantity: Int,
+    var name: String,
+    var price: Long,
+    var description: String?,
+    var stockQuantity: Int,
 
     @Enumerated(EnumType.STRING)
-    val status: ProductStatus
+    var status: ProductStatus
 ) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
+        protected set
 }

@@ -1,6 +1,7 @@
 package com.commercelab.member.adapter.out.persistence
 
 import com.commercelab.member.domain.Role
+import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -10,12 +11,16 @@ import jakarta.persistence.Id
 
 @Entity
 class MemberJpaEntity(
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
-    val id: Long?,
-    val email: String,
-    val password: String,
-    val name: String,
+    @Column(unique = true, nullable = false)
+    var email: String,
+    var password: String,
+    var name: String,
 
     @Enumerated(EnumType.STRING)
-    val role: Role,
-)
+    var role: Role,
+) {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    var id: Long? = null
+        protected set
+}

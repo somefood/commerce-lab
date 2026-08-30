@@ -30,7 +30,6 @@ class MemberPersistenceAdapter(
 
 fun Member.toJpaEntity(): MemberJpaEntity {
     return MemberJpaEntity(
-        id = id,
         email = email.value,
         password = password.value,
         name = name,
