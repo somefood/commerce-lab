@@ -43,6 +43,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")    // adapter/out/persistence 용
     implementation("org.springframework.boot:spring-boot-starter-validation")  // 요청 DTO 검증용
     implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation("org.springframework.security:spring-security-crypto")
 
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
