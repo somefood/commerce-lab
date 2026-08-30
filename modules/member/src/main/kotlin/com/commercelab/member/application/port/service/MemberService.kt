@@ -21,8 +21,7 @@ class MemberService(
     @Transactional
     override fun registerCustomerMember(registerMemberCommand: RegisterMemberCommand): Member {
         val findMember = memberRepository.findByEmail(Email(registerMemberCommand.email))
-        // TODO 이메일로 회원이 이미 등록된건데 나중에 커스텀 409를 주는 예외를 만들어야함
-        if (findMember != null) throw IllegalArgumentException()
+        if (findMember != null) throw EmailAlreadyExistException()
 
         return memberRepository.save(
             Member(
