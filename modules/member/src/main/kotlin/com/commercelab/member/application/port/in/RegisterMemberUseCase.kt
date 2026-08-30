@@ -7,7 +7,7 @@ import com.commercelab.member.domain.Role
 
 interface RegisterMemberUseCase {
 
-    fun registerMember(registerMemberCommand: RegisterMemberCommand): Member
+    fun registerCustomerMember(registerMemberCommand: RegisterMemberCommand): Member
 }
 
 data class RegisterMemberCommand(
