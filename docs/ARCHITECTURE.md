@@ -110,3 +110,15 @@ JPA 어댑터가 그 인터페이스를 **구현**한다. (기술이 비즈니�
 - **결정**: 현재 최신 정식 버전인 Boot 4.1 채택
 - **근거**: 포트폴리오 신선도. Boot 3 → 4 차이(모듈화된 스타터, Jackson 3 등)를 아는 것 자체가 어필 포인트
 - **리스크**: 국내 블로그 자료 대부분이 Boot 2~3 기준이라 검색 결과와 다를 수 있음 → 공식 문서 우선
+
+### ADR-004: JWT 인증은 Spring Security 내장 지원으로, 별도 라이브러리 없이 (2026-08-30)
+
+- **상황**: Phase 2 회원/인증. 선택지는 ① jjwt + 커스텀 `OncePerRequestFilter` ② Spring Security의
+  `oauth2-resource-server` JWT 지원 (Nimbus)
+- **결정**: ②. HS256 대칭키, `NimbusJwtEncoder`로 발급 / `NimbusJwtDecoder`로 검증. 세션 없음(STATELESS), CSRF 비활성.
+- **근거**: 프레임워크 표준 경로라 필터 체인 통합·예외 처리·테스트 지원(`jwt()` post-processor)이 갖춰져 있다.
+  커스텀 필터 방식은 구버전 관행이며 직접 구현할수록 보안 실수 여지가 커진다.
+- **포기한 것**: 토큰 구조에 대한 세밀한 제어. Refresh Token은 이번 범위 밖 (필요 시 Phase 2.5).
+- **후속**: Phase 8 서비스 분리 시 검증자가 여럿이 되면 RS256(비대칭키) 전환 검토.
+- **헥사고날 적용**: `PasswordHasher`, `TokenIssuer`를 member 모듈의 port/out으로 두어 도메인/서비스가
+  Spring Security를 모르게 한다. URL 권한 정책(`SecurityFilterChain`)은 조립 담당인 apps/api 소관.
