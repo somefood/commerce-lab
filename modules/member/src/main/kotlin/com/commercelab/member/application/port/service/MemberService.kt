@@ -21,7 +21,7 @@ class MemberService(
     @Transactional
     override fun registerCustomerMember(registerMemberCommand: RegisterMemberCommand): Member {
         val findMember = memberRepository.findByEmail(Email(registerMemberCommand.email))
-        if (findMember != null) throw EmailAlreadyExistException()
+        if (findMember != null) throw DuplicateEmailException()
 
         return memberRepository.save(
             Member(

@@ -1,4 +1,4 @@
 package com.commercelab.member.application.port.service
 
-class EmailAlreadyExistException : RuntimeException() {
+class DuplicateEmailException : RuntimeException() {
 }

@@ -3,7 +3,6 @@ package com.commercelab.member.application.port.service
 import com.commercelab.member.application.port.`in`.RegisterMemberCommand
 import com.commercelab.member.application.port.out.MemberRepository
 import com.commercelab.member.application.port.out.PasswordHasher
-import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -34,6 +33,6 @@ class MemberServiceTest {
         memberService.registerCustomerMember(RegisterMemberCommand("a@a.com", "12345678", "주서콩"))
 
         assertThatThrownBy { memberService.registerCustomerMember(RegisterMemberCommand("a@a.com", "12345678", "주서콩")) }
-            .isInstanceOf(EmailAlreadyExistException::class.java)
+            .isInstanceOf(DuplicateEmailException::class.java)
     }
 }
