@@ -9,10 +9,12 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.transaction.annotation.Transactional
 import kotlin.test.Test
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 class ProductApiTest {
 
     @Autowired

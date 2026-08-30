@@ -1,5 +1,6 @@
 package com.commercelab.web
 
+import com.commercelab.member.application.port.service.DuplicateEmailException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -21,6 +22,12 @@ class GlobalExceptionHandler {
     fun handleValidation(e: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(ErrorResponse(e.bindingResult.fieldErrors.joinToString { "${it.field} : ${it.defaultMessage}" }))
+    }
+
+    @ExceptionHandler(DuplicateEmailException::class)
+    fun handleDeuplicateEmail(e: DuplicateEmailException): ResponseEntity<ErrorResponse> {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ErrorResponse(e.message ?: "올바르지 않은 요청입니다."))
     }
 }
 
