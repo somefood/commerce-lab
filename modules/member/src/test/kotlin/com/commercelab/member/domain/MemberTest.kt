@@ -12,9 +12,11 @@ class MemberTest {
 
         Assertions.assertThatThrownBy {
             Member(
+                1L,
                 Email("a@a.com"),
                 Password(shortPassword),
-                "주서콩"
+                "주서콩",
+                Role.CUSTOMER
             )
         }.isInstanceOf(IllegalArgumentException::class.java)
     }

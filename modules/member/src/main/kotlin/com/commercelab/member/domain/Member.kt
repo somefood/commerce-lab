@@ -1,6 +1,7 @@
 package com.commercelab.member.domain
 
 data class Member(
+    val id: Long?,
     val email: Email,
     val password: Password,
     val name: String,
