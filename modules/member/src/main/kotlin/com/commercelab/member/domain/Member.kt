@@ -12,7 +12,7 @@ data class Member private constructor(
         const val PASSWORD_MIN_LENGTH = 8
 
         fun register(email: Email, rawPassword: String, hasher: PasswordHasher, name: String): Member {
-            require(rawPassword.length >= PASSWORD_MIN_LENGTH) { "비밀번호는 8자 이상이어야 합니다." }
+            require(rawPassword.length >= PASSWORD_MIN_LENGTH) { "비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 합니다." }
             return Member(
                 null,
                 email,
@@ -29,9 +29,13 @@ data class Member private constructor(
 }
 
 @JvmInline
-value class Email(val value: String) {
-    init {
-        require(value.contains("@")) { "이메일 형식이 아닙니다: $value" }
+value class Email private constructor(val value: String) {
+    companion object {
+        fun of(raw: String): Email {
+            val normalized = raw.trim().lowercase()
+            require(normalized.contains("@")) { "이메일 형식이 아닙니다: $raw" }
+            return Email(normalized)
+        }
     }
 }
 

@@ -22,12 +22,12 @@ class MemberService(
 
     @Transactional
     override fun registerCustomerMember(registerMemberCommand: RegisterMemberCommand): Member {
-        val findMember = memberRepository.findByEmail(Email(registerMemberCommand.email))
+        val findMember = memberRepository.findByEmail(Email.of(registerMemberCommand.email))
         if (findMember != null) throw DuplicateEmailException()
 
         return memberRepository.save(
             Member.register(
-                Email(registerMemberCommand.email),
+                Email.of(registerMemberCommand.email),
                 registerMemberCommand.password,
                 passwordHasher,
                 registerMemberCommand.name,

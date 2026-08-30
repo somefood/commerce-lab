@@ -40,7 +40,7 @@ fun Member.toJpaEntity(): MemberJpaEntity {
 fun MemberJpaEntity.toDomain(): Member {
     return Member.reconstitute(
         id = requireNotNull(id),
-        email = Email(email),
+        email = Email.of(email),
         hashedPassword = HashedPassword(password),
         name = name,
         role = role

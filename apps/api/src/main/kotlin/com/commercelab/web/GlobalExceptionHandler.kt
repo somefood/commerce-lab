@@ -1,6 +1,7 @@
 package com.commercelab.web
 
 import com.commercelab.member.domain.DuplicateEmailException
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -25,10 +26,14 @@ class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(DuplicateEmailException::class)
-    fun handleDeuplicateEmail(e: DuplicateEmailException): ResponseEntity<ErrorResponse> {
+    fun handleDuplicateEmail(e: DuplicateEmailException): ResponseEntity<ErrorResponse> {
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(ErrorResponse(e.message ?: "올바르지 않은 요청입니다."))
     }
+
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    fun handleDataIntegrity(e: DataIntegrityViolationException) =
+        ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse("이미 존재하는 데이터입니다."))
 }
 
 data class ErrorResponse(val message: String)

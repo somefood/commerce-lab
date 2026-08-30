@@ -19,12 +19,7 @@ class MemberController(
         return ResponseEntity
             .created(URI("/api/members/${member.id}"))
             .body(
-                MemberCreateResponse(
-                    member.id!!,
-                    member.email.value,
-                    member.name,
-                    member.role.name
-                )
+                MemberCreateResponse.from(member)
             )
     }
 }
