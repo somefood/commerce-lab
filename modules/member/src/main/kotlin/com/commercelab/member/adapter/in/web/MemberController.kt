@@ -18,10 +18,13 @@ class MemberController(
         val member = registerMemberUseCase.registerCustomerMember(registerRequest.toRegisterMemberCommand())
         return ResponseEntity
             .created(URI("/api/members/${member.id}"))
-            .body(MemberCreateResponse(
-                member.id!!,
-                member.email.value,
-                member.name)
+            .body(
+                MemberCreateResponse(
+                    member.id!!,
+                    member.email.value,
+                    member.name,
+                    member.role.name
+                )
             )
     }
 }

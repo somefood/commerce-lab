@@ -1,5 +1,6 @@
 package com.commercelab.member.domain
 
+import com.commercelab.member.application.service.FakePasswordHasher
 import org.assertj.core.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -11,12 +12,11 @@ class MemberTest {
 
 
         Assertions.assertThatThrownBy {
-            Member(
-                1L,
+            Member.register(
                 Email("a@a.com"),
-                Password(shortPassword),
+                shortPassword,
+                FakePasswordHasher(),
                 "주서콩",
-                Role.CUSTOMER
             )
         }.isInstanceOf(IllegalArgumentException::class.java)
     }

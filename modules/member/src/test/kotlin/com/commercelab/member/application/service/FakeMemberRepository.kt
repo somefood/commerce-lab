@@ -11,7 +11,13 @@ class FakeMemberRepository : MemberRepository {
 
     override fun save(member: Member): Member {
         val id = member.id ?: ++sequence
-        val saved = member.copy(id = id)
+        val saved = Member.reconstitute(
+            id,
+            member.email,
+            member.hashedPassword,
+            member.name,
+            member.role
+        )
         store[id] = saved
         return saved
     }

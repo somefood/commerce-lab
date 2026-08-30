@@ -4,11 +4,11 @@ import com.commercelab.member.application.port.`in`.GetMemberQuery
 import com.commercelab.member.application.port.`in`.RegisterMemberCommand
 import com.commercelab.member.application.port.`in`.RegisterMemberUseCase
 import com.commercelab.member.application.port.out.MemberRepository
-import com.commercelab.member.application.port.out.PasswordHasher
+import com.commercelab.member.domain.PasswordHasher
 import com.commercelab.member.domain.DuplicateEmailException
 import com.commercelab.member.domain.Email
 import com.commercelab.member.domain.Member
-import com.commercelab.member.domain.Password
+import com.commercelab.member.domain.HashedPassword
 import com.commercelab.member.domain.Role
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -26,21 +26,16 @@ class MemberService(
         if (findMember != null) throw DuplicateEmailException()
 
         return memberRepository.save(
-            Member(
-                null,
+            Member.register(
                 Email(registerMemberCommand.email),
-                Password(passwordHasher.hash(registerMemberCommand.password)),
+                registerMemberCommand.password,
+                passwordHasher,
                 registerMemberCommand.name,
-                Role.CUSTOMER
             )
         )
     }
 
     override fun getMember(id: Long): Member {
         return memberRepository.findById(id) ?: throw NoSuchElementException("Member not found")
-    }
-
-    override fun getAllMembers(): List<Member> {
-        TODO("Not yet implemented")
     }
 }

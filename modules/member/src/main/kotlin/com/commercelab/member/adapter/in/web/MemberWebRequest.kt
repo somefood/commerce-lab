@@ -9,7 +9,7 @@ data class MemberRegisterRequest(
     @field:Email("이메일 형식이 올바르지 않습니다.")
     val email: String,
 
-    @field:Size(min = 8, message = "비밀번호는 8자 이상이어야 합니다")
+    @field:Size(min = 8, message = "비밀번호는 8자 이상이어야 합니다.")
     val password: String,
 
     @field:NotBlank(message = "이름은 필수입니다")
