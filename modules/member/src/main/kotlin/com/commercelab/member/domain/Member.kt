@@ -32,7 +32,7 @@ data class Member private constructor(
 value class Email private constructor(val value: String) {
     companion object {
         fun of(raw: String): Email {
-            val normalized = raw.trim().lowercase()
+            val normalized = raw.lowercase()
             require(normalized.contains("@")) { "이메일 형식이 아닙니다: $raw" }
             return Email(normalized)
         }
