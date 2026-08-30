@@ -17,9 +17,14 @@ class MemberPersistenceAdapter(
         return jpaEntity.toDomain()
     }
 
+    override fun findById(id: Long): Member? {
+        return memberJpaRepository.findById(id)
+            .getOrNull()?.toDomain()
+    }
+
     override fun findByEmail(email: Email): Member? {
         return memberJpaRepository.findByEmail(email.value)
-            .getOrNull<MemberJpaEntity>()?.toDomain()
+            .getOrNull()?.toDomain()
     }
 }
 

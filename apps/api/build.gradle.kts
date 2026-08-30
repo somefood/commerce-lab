@@ -25,6 +25,7 @@ dependencies {
     // 도메인 모듈 조립
     implementation(project(":modules:common"))
     implementation(project(":modules:product"))
+    implementation(project(":modules:member"))
 
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-actuator")

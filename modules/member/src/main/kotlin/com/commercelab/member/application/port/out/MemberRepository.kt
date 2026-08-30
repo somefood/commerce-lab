@@ -5,5 +5,6 @@ import com.commercelab.member.domain.Member
 
 interface MemberRepository {
     fun save(member: Member): Member
+    fun findById(id: Long): Member?
     fun findByEmail(email: Email): Member?
 }

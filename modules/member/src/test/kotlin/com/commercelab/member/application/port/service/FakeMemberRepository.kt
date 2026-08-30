@@ -16,6 +16,10 @@ class FakeMemberRepository : MemberRepository {
         return saved
     }
 
+    override fun findById(id: Long): Member? {
+        return store[id]
+    }
+
     override fun findByEmail(email: Email): Member? {
         return store.values.find { it.email == email }
     }

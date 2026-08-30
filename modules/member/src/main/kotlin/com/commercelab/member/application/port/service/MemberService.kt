@@ -1,5 +1,6 @@
 package com.commercelab.member.application.port.service
 
+import com.commercelab.member.application.port.`in`.GetMemberQuery
 import com.commercelab.member.application.port.`in`.RegisterMemberCommand
 import com.commercelab.member.application.port.`in`.RegisterMemberUseCase
 import com.commercelab.member.application.port.out.MemberRepository
@@ -16,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional
 class MemberService(
     private val memberRepository: MemberRepository,
     private val passwordHasher: PasswordHasher
-) : RegisterMemberUseCase {
+) : RegisterMemberUseCase, GetMemberQuery {
 
     @Transactional
     override fun registerCustomerMember(registerMemberCommand: RegisterMemberCommand): Member {
@@ -32,5 +33,13 @@ class MemberService(
                 Role.CUSTOMER
             )
         )
+    }
+
+    override fun getMember(id: Long): Member {
+        return memberRepository.findById(id) ?: throw NoSuchElementException("Member not found")
+    }
+
+    override fun getAllMembers(): List<Member> {
+        TODO("Not yet implemented")
     }
 }
