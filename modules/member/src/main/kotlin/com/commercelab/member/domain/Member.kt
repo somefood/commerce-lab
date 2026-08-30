@@ -3,7 +3,8 @@ package com.commercelab.member.domain
 data class Member(
     val email: Email,
     val password: Password,
-    val name: String
+    val name: String,
+    val role: Role
 )
 
 @JvmInline
