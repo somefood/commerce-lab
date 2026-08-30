@@ -19,6 +19,6 @@ include("apps:api")
 include("modules:common")
 include("modules:product")
 // Phase가 진행되면 여기에 추가된다:
-// include("modules:member")
+ include("modules:member")
 // include("modules:order")
 // include("modules:payment")
