@@ -1,4 +1,4 @@
-package com.commercelab.member.adapter.port.`in`
+package com.commercelab.member.adapter.`in`.web
 
 data class MemberCreateResponse(
     val id: Long,

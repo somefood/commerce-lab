@@ -1,4 +1,4 @@
-package com.commercelab.member.adapter.port.out.persistence
+package com.commercelab.member.adapter.out.persistence
 
 import com.commercelab.member.domain.Role
 import jakarta.persistence.Entity

@@ -1,8 +1,9 @@
-package com.commercelab.member.application.port.service
+package com.commercelab.member.application.service
 
 import com.commercelab.member.application.port.`in`.RegisterMemberCommand
 import com.commercelab.member.application.port.out.MemberRepository
 import com.commercelab.member.application.port.out.PasswordHasher
+import com.commercelab.member.domain.DuplicateEmailException
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach

@@ -1,10 +1,11 @@
-package com.commercelab.member.application.port.service
+package com.commercelab.member.application.service
 
 import com.commercelab.member.application.port.`in`.GetMemberQuery
 import com.commercelab.member.application.port.`in`.RegisterMemberCommand
 import com.commercelab.member.application.port.`in`.RegisterMemberUseCase
 import com.commercelab.member.application.port.out.MemberRepository
 import com.commercelab.member.application.port.out.PasswordHasher
+import com.commercelab.member.domain.DuplicateEmailException
 import com.commercelab.member.domain.Email
 import com.commercelab.member.domain.Member
 import com.commercelab.member.domain.Password

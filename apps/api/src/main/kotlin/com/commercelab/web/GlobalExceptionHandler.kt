@@ -1,6 +1,6 @@
 package com.commercelab.web
 
-import com.commercelab.member.application.port.service.DuplicateEmailException
+import com.commercelab.member.domain.DuplicateEmailException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException

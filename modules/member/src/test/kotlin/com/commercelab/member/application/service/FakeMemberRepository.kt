@@ -1,4 +1,4 @@
-package com.commercelab.member.application.port.service
+package com.commercelab.member.application.service
 
 import com.commercelab.member.application.port.out.MemberRepository
 import com.commercelab.member.domain.Email

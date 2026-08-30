@@ -1,4 +1,4 @@
-package com.commercelab.member.adapter.port.`in`
+package com.commercelab.member.adapter.`in`.web
 
 import com.commercelab.member.application.port.`in`.RegisterMemberCommand
 import jakarta.validation.constraints.Email

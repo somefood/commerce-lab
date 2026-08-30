@@ -1,4 +1,4 @@
-package com.commercelab.member.adapter.port.out.security
+package com.commercelab.member.adapter.out.security
 
 import com.commercelab.member.application.port.out.PasswordHasher
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
