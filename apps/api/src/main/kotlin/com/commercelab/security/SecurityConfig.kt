@@ -12,6 +12,10 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
+import org.springframework.http.HttpMethod.DELETE
+import org.springframework.http.HttpMethod.GET
+import org.springframework.http.HttpMethod.POST
+import org.springframework.http.HttpMethod.PUT
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.invoke
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -37,11 +41,13 @@ class SecurityConfig(
             sessionManagement { sessionCreationPolicy = SessionCreationPolicy.STATELESS }
             oauth2ResourceServer { jwt {} }
             authorizeHttpRequests {
-                authorize(HttpMethod.POST, "/api/members", permitAll)
-                authorize(HttpMethod.GET, "/api/products/**", permitAll)
-                authorize(HttpMethod.POST, "/api/products/**", hasRole("ADMIN"))
-                authorize(HttpMethod.PUT, "/api/products/**", hasRole("ADMIN"))
-                authorize(HttpMethod.DELETE, "/api/products/**", hasRole("ADMIN"))
+                authorize(GET, "/error", permitAll)
+                authorize(POST, "/api/auth/login", permitAll)
+                authorize(POST, "/api/members", permitAll)
+                authorize(GET, "/api/products/**", permitAll)
+                authorize(POST, "/api/products/**", hasRole("ADMIN"))
+                authorize(PUT, "/api/products/**", hasRole("ADMIN"))
+                authorize(DELETE, "/api/products/**", hasRole("ADMIN"))
                 authorize(anyRequest, authenticated)
             }
         }

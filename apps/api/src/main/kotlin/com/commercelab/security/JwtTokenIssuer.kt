@@ -31,6 +31,9 @@ class JwtTokenIssuer(
 
         val header = JwsHeader.with(MacAlgorithm.HS256).build()
 
-        return Token.of(jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue)
+        return Token.of(
+            jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue,
+            3600
+        )
     }
 }

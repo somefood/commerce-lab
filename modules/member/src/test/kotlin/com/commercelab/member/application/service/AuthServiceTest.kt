@@ -6,10 +6,9 @@ import com.commercelab.member.application.port.out.TokenIssuer
 import com.commercelab.member.domain.FakePasswordHasher
 import com.commercelab.member.domain.InvalidAuthenticationException
 import com.commercelab.member.domain.PasswordHasher
-import org.assertj.core.api.Assertions
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -39,7 +38,7 @@ class AuthServiceTest {
             memberService.registerCustomerMember(RegisterMemberCommand(email, password, "주석"))
 
         val authenticate = authService.authenticate(email, "12345678")
-        assertEquals(tokenIssuer.issue(member), authenticate)
+        assertThat(tokenIssuer.issue(member)).isEqualTo(authenticate)
     }
 
     @Test

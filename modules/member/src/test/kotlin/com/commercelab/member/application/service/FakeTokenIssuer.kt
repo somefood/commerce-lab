@@ -7,6 +7,6 @@ import com.commercelab.member.domain.Member
 class FakeTokenIssuer : TokenIssuer {
 
     override fun issue(member: Member): Token {
-        return Token.of("token")
+        return Token.of("token", 3600)
     }
 }

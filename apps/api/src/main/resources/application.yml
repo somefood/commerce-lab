@@ -29,3 +29,5 @@ management:
     web:
       exposure:
         include: health, info
+
+JWT_SECRET: 0ae9e8ea2654bbffc3ffe05eb8095aef6044805e8fc18657d56682a1af28dae9

@@ -1,6 +1,7 @@
 package com.commercelab.web
 
 import com.commercelab.member.domain.DuplicateEmailException
+import com.commercelab.member.domain.InvalidAuthenticationException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -34,6 +35,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleDataIntegrity(e: DataIntegrityViolationException) =
         ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse("이미 존재하는 데이터입니다."))
+
+    @ExceptionHandler(InvalidAuthenticationException::class)
+    fun handleInvalidAuthentication(e: InvalidAuthenticationException) =
+        ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ErrorResponse(requireNotNull(e.message)))
 }
 
 data class ErrorResponse(val message: String)

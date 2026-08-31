@@ -7,8 +7,14 @@ interface TokenIssuer {
 }
 
 @ConsistentCopyVisibility
-data class Token private constructor(val value: String) {
+data class Token private constructor(
+    val value: String,
+    val expiresIn: Long,
+) {
     companion object {
-        fun of(value: String) = Token(value)
+        fun of(
+            value: String,
+            expiresIn: Long
+        ) = Token(value, expiresIn)
     }
 }
