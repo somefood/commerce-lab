@@ -6,6 +6,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
 import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -35,6 +36,17 @@ class ProductApiTest {
 
         val location = result.response.getHeader("Location")
         mockMvc.perform(get(location!!)).andExpect(status().isOk)
+    }
+
+    @Test
+    @WithMockUser(roles = ["CUSTOMER"])
+    fun `CUSTOMER는 상품을 등록할 수 없다`() {
+        mockMvc.perform(
+            post("/api/products")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"티셔츠","price":29000,"stockQuantity":10}""")
+        )
+            .andExpect(status().isForbidden)
     }
 
     @Test
@@ -91,5 +103,14 @@ class ProductApiTest {
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.message").value("수량은 0 미만이 될 수 없습니다. 현재 수량=10"))
+    }
+
+    @Test
+    @WithMockUser(roles = ["CUSTOMER"])
+    fun `CUSTOMER는 상품을 삭제할 수 없다`() {
+        mockMvc.perform(
+            delete("/api/products/1")
+        )
+            .andExpect(status().isForbidden)
     }
 }
