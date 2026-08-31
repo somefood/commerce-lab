@@ -8,8 +8,6 @@ import com.commercelab.member.domain.PasswordHasher
 import com.commercelab.member.domain.DuplicateEmailException
 import com.commercelab.member.domain.Email
 import com.commercelab.member.domain.Member
-import com.commercelab.member.domain.HashedPassword
-import com.commercelab.member.domain.Role
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 

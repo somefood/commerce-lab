@@ -12,4 +12,8 @@ class BCryptPasswordHasher : PasswordHasher {
     override fun hash(password: String): String {
         return requireNotNull(bcryptEncoder.encode(password))
     }
+
+    override fun verify(password: String, hashedPassword: String): Boolean {
+        return bcryptEncoder.matches(password, hashedPassword)
+    }
 }

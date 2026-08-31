@@ -26,6 +26,9 @@ data class Member private constructor(
         fun reconstitute(id: Long, email: Email, hashedPassword: HashedPassword, name: String, role: Role): Member =
             Member(id, email, hashedPassword, name, role)
     }
+
+    fun verifyPassword(rawPassword: String, hasher: PasswordHasher): Boolean =
+        hasher.verify(rawPassword, hashedPassword.value)
 }
 
 @JvmInline
