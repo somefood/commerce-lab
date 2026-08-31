@@ -33,6 +33,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("tools.jackson.module:jackson-module-kotlin") // Kotlin data class <-> JSON 변환
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 
     // 로컬 개발용 인메모리 DB (Phase 3에서 PostgreSQL로 교체 예정)
     runtimeOnly("com.h2database:h2")
