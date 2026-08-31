@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.MediaType
+import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -21,6 +22,7 @@ class ProductApiTest {
     lateinit var mockMvc: MockMvc
 
     @Test
+    @WithMockUser(roles = ["ADMIN"])
     fun `상품을 등록하고 조회한다`() {
         val result = mockMvc.perform(
             post("/api/products")
@@ -44,6 +46,7 @@ class ProductApiTest {
     }
 
     @Test
+    @WithMockUser(roles = ["ADMIN"])
     fun `상품등록 시 음수는 입력되면 안된다`() {
         mockMvc.perform(
             post("/api/products")
@@ -55,6 +58,7 @@ class ProductApiTest {
     }
 
     @Test
+    @WithMockUser(roles = ["ADMIN"])
     fun `상품명이 100자를 넘으면 등록할 수 없다`() {
         val longName = "가".repeat(101)
 
@@ -67,6 +71,7 @@ class ProductApiTest {
     }
 
     @Test
+    @WithMockUser(roles = ["ADMIN"])
     fun `재고가 부족하면 차감할 수 없다`() {
         val result = mockMvc.perform(
             post("/api/products")

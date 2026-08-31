@@ -32,6 +32,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa") // 엔티티 스캔/트랜잭션 설정 주체
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("tools.jackson.module:jackson-module-kotlin") // Kotlin data class <-> JSON 변환
+    implementation("org.springframework.boot:spring-boot-starter-security")
 
     // 로컬 개발용 인메모리 DB (Phase 3에서 PostgreSQL로 교체 예정)
     runtimeOnly("com.h2database:h2")
@@ -40,6 +41,8 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // Boot 4: @WithMockUser <-> MockMvc 연결 자동설정이 별도 모듈로 분리됨 (spring-security-test만으론 부족)
+    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
 }
 
 tasks.withType<Test> {

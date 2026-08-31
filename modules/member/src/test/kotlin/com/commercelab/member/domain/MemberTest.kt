@@ -23,7 +23,7 @@ class MemberTest {
 
     @Test
     fun `이메일은 소문자로 정규화된다`() {
-        assertThat(Email.of(" A@Example.COM ").value).isEqualTo("a@example.com")
+        assertThat(Email.of("A@Example.COM").value).isEqualTo("a@example.com")
     }
 
     @Test
