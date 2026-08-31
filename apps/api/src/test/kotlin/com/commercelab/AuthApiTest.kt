@@ -36,7 +36,8 @@ class AuthApiTest {
                 .content("""{"email":"register-test@a.com","password":"12345678"}""")
         )
             .andExpect(status().isOk)
-            .andExpect(jsonPath("$.tokenType").value(StringStartsWith.startsWith("Bearer")))
+            .andExpect(jsonPath("$.tokenType").value("Bearer"))
+            .andExpect(jsonPath("$.accessToken").isNotEmpty)
     }
 
     @Test

@@ -17,6 +17,9 @@ import java.time.temporal.ChronoUnit
 class JwtTokenIssuer(
     private val jwtEncoder: JwtEncoder
 ) : TokenIssuer {
+    companion object {
+        private const val EXPIRES_IN_SECONDS = 3600L
+    }
 
     override fun issue(member: Member): Token {
         val now = Instant.now()
@@ -26,14 +29,14 @@ class JwtTokenIssuer(
             .claim("email", member.email.value)
             .claim("role", member.role.name)    // enum은 .name으로
             .issuedAt(now)                      // iat
-            .expiresAt(now.plus(1, ChronoUnit.HOURS))  // exp
+            .expiresAt(now.plusSeconds(EXPIRES_IN_SECONDS))  // exp
             .build()
 
         val header = JwsHeader.with(MacAlgorithm.HS256).build()
 
         return Token.of(
             jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).tokenValue,
-            3600
+            EXPIRES_IN_SECONDS
         )
     }
 }
