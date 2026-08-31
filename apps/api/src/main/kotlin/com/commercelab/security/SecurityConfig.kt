@@ -41,7 +41,7 @@ class SecurityConfig(
             sessionManagement { sessionCreationPolicy = SessionCreationPolicy.STATELESS }
             oauth2ResourceServer { jwt {} }
             authorizeHttpRequests {
-                authorize(GET, "/error", permitAll)
+                authorize("/error", permitAll)
                 authorize(POST, "/api/auth/login", permitAll)
                 authorize(POST, "/api/members", permitAll)
                 authorize(GET, "/api/products/**", permitAll)
