@@ -30,5 +30,12 @@ management:
       exposure:
         include: health, info
 
+# 기동 시 시드되는 ADMIN 계정 (AdminAccountSeeder).
+# ⚠️ 학습용 기본값. 배포 시 환경변수 APP_ADMIN_EMAIL / APP_ADMIN_PASSWORD로 덮는다.
+app:
+  admin:
+    email: admin@commercelab.dev
+    password: admin1234!
+
 # ⚠️ 학습용 키. 배포 전 폐기·재발급 (공개 레포 히스토리에 노출됨)
 JWT_SECRET: 0ae9e8ea2654bbffc3ffe05eb8095aef6044805e8fc18657d56682a1af28dae9

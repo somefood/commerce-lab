@@ -29,6 +29,9 @@ data class Member private constructor(
 
     fun verifyPassword(rawPassword: String, hasher: PasswordHasher): Boolean =
         hasher.verify(rawPassword, hashedPassword.value)
+
+    // 생성자가 막혀 있으므로 상태 전이는 도메인 메서드로만 가능하다 (copy는 @ConsistentCopyVisibility로 봉인됨)
+    fun promoteToAdmin(): Member = copy(role = Role.ADMIN)
 }
 
 @JvmInline
