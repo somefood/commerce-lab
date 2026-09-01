@@ -5,22 +5,24 @@
 
 ## 로드맵
 
-### Phase 0 — 온보딩 ✅ (진행 중)
+### Phase 0 — 온보딩 ✅
 - 개발 환경 확인 (JDK 21, Docker, IntelliJ)
 - 프로젝트 뼈대 이해: 멀티모듈이 왜 이렇게 나뉘어 있는지
 - 첫 빌드 & 앱 실행 성공
 - **산출물**: `./gradlew build` 그린, 첫 커밋
 
-### Phase 1 — 상품(Product) CRUD × 헥사고날
+### Phase 1 — 상품(Product) CRUD × 헥사고날 ✅
 - 헥사고날 아키텍처를 CRUD라는 익숙한 문제로 체득
 - Kotlin 기본기: data class, null safety, 확장 함수
 - REST API 설계, JPA 매핑, 계층별 테스트
 - **핵심 질문**: "왜 컨트롤러가 서비스 구현체가 아니라 인터페이스(port)에 의존하는가?"
 
-### Phase 2 — 회원 & 인증
-- 회원가입/로그인, Spring Security + JWT
-- 비밀번호 해싱, 토큰 만료/갱신 전략
-- **핵심 질문**: "세션 대신 JWT를 쓰는 트레이드오프는?"
+### Phase 2 — 회원 & 인증 ✅ (2026-09-01 완료)
+- 회원가입/로그인, Spring Security + JWT (내장 oauth2-resource-server, HS256)
+- 비밀번호 해싱(BCrypt), 값 객체(Email), 생성/복원 팩토리, 계정 열거 방어
+- 클레임→권한 변환(JwtAuthenticationConverter), ADMIN 시드, 인증 왕복 테스트
+- **핵심 질문**: "세션 대신 JWT를 쓰는 트레이드오프는?" → 리뷰 완료
+- 남은 숙제(Phase 후속): Refresh Token은 배포 전 필요 시 도입 검토
 
 ### Phase 3 — 장바구니 & 주문 + PostgreSQL 전환
 - 도메인 모델링의 본격 시작: 주문은 이커머스에서 가장 복잡한 애그리거트
