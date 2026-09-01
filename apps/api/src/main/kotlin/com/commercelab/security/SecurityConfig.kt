@@ -24,6 +24,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtEncoder
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter
 import org.springframework.security.web.SecurityFilterChain
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
@@ -39,7 +41,9 @@ class SecurityConfig(
         http {
             csrf { disable() }
             sessionManagement { sessionCreationPolicy = SessionCreationPolicy.STATELESS }
-            oauth2ResourceServer { jwt {} }
+            oauth2ResourceServer { jwt {
+                jwtAuthenticationConverter = jwtAuthenticationConverter()
+            } }
             authorizeHttpRequests {
                 authorize("/error", permitAll)
                 authorize(POST, "/api/auth/login", permitAll)
@@ -68,5 +72,16 @@ class SecurityConfig(
         val jwkSource: JWKSource<SecurityContext> = ImmutableJWKSet(JWKSet(jwk))
 
         return NimbusJwtEncoder(jwkSource)
+    }
+
+    @Bean
+    fun jwtAuthenticationConverter(): JwtAuthenticationConverter {
+        val authenticationConverter = JwtGrantedAuthoritiesConverter().apply {
+            setAuthoritiesClaimName("role")
+            setAuthorityPrefix("ROLE_")
+        }
+        return JwtAuthenticationConverter().apply {
+            setJwtGrantedAuthoritiesConverter(authenticationConverter)
+        }
     }
 }
