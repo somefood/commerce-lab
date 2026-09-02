@@ -37,7 +37,7 @@ dependencies {
 
     runtimeOnly("org.postgresql:postgresql")
 
-    // flayway 의존성 추가
+    // flyway 의존성 추가
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.springframework.boot:spring-boot-flyway") // (Boot 4.x 자동설정)
