@@ -35,9 +35,12 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 
-    // 로컬 개발용 인메모리 DB (Phase 3에서 PostgreSQL로 교체 예정)
-    runtimeOnly("com.h2database:h2")
-    implementation("org.springframework.boot:spring-boot-h2console")
+    runtimeOnly("org.postgresql:postgresql")
+
+    // flayway 의존성 추가
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("org.springframework.boot:spring-boot-flyway") // (Boot 4.x 자동설정)
 
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
