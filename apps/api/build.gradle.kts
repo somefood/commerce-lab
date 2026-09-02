@@ -47,6 +47,10 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     // Boot 4: @WithMockUser <-> MockMvc 연결 자동설정이 별도 모듈로 분리됨 (spring-security-test만으론 부족)
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")
+
+    // testcontainers
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
 }
 
 tasks.withType<Test> {
