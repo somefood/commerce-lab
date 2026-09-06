@@ -1,5 +1,6 @@
 package com.commercelab.product.application.service
 
+import com.commercelab.common.Money
 import com.commercelab.product.application.port.`in`.AdjustStockUseCase
 import com.commercelab.product.application.port.`in`.DeleteProductUseCase
 import com.commercelab.product.application.port.`in`.EditProductCommand
@@ -19,7 +20,7 @@ class ProductService(
     override fun registerProduct(registerProductCommand: RegisterProductCommand): Product {
         val product = Product.create(
             name = registerProductCommand.name,
-            price = registerProductCommand.price,
+            price = Money.of(registerProductCommand.price),
             description = registerProductCommand.description,
             stockQuantity = registerProductCommand.stockQuantity
         )
@@ -43,7 +44,7 @@ class ProductService(
         val editedProduct = product.copy(
             name = editRequest.name,
             description = editRequest.description,
-            price = editRequest.price,
+            price = Money.of(editRequest.price),
         )
         productRepository.save(editedProduct)
     }

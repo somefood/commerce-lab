@@ -16,7 +16,7 @@ data class ProductCreateResponse(
             return ProductCreateResponse(
                 id = product.id,
                 name = product.name,
-                price = product.price,
+                price = product.price.amount,
                 description = product.description,
                 stockQuantity = product.stockQuantity,
                 status = product.status
@@ -38,7 +38,7 @@ data class ProductResponse(
             return ProductResponse(
                 id = product.id,
                 name = product.name,
-                price = product.price,
+                price = product.price.amount,
                 description = product.description,
                 stockQuantity = product.stockQuantity,
                 status = product.status
@@ -56,7 +56,7 @@ data class ProductListResponse(
                 ProductResponse(
                     id = it.id,
                     name = it.name,
-                    price = it.price,
+                    price = it.price.amount,
                     description = it.description,
                     stockQuantity = it.stockQuantity,
                     status = it.status

@@ -1,22 +1,23 @@
 package com.commercelab.product.domain
 
+import com.commercelab.common.Money
+
 data class Product(
     val id: Long?,
     val name: String,
-    val price: Long,
+    val price: Money,
     val description: String?,
     val stockQuantity: Int,
     val status: ProductStatus
 ) {
     init {
-        require(price >= 0) { "가격은 0 이상이어야 합니다. price=$price" }
         require(stockQuantity >= 0) { "재고 수량은 0 이상이어야 합니다. stockQuantity=$stockQuantity" }
     }
 
     companion object {
         fun create(
             name: String,
-            price: Long,
+            price: Money,
             description: String?,
             stockQuantity: Int
         ): Product =

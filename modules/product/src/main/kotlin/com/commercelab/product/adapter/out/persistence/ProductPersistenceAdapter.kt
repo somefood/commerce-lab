@@ -1,5 +1,6 @@
 package com.commercelab.product.adapter.out.persistence
 
+import com.commercelab.common.Money
 import com.commercelab.product.application.port.out.ProductRepository
 import com.commercelab.product.domain.Product
 import org.springframework.stereotype.Repository
@@ -29,7 +30,7 @@ class ProductPersistenceAdapter(
 fun Product.toEntity(): ProductJpaEntity {
     return ProductJpaEntity(
         name = name,
-        price = price,
+        price = price.amount,
         description = description,
         stockQuantity = stockQuantity,
         status = status
@@ -40,7 +41,7 @@ fun ProductJpaEntity.toDomain(): Product {
     return Product(
         id = id,
         name = name,
-        price = price,
+        price = Money.of(price),
         description = description,
         stockQuantity = stockQuantity,
         status = status

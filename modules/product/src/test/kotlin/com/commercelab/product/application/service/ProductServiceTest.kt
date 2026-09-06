@@ -1,5 +1,6 @@
 package com.commercelab.product.application.service
 
+import com.commercelab.common.Money
 import com.commercelab.product.application.port.`in`.EditProductCommand
 import com.commercelab.product.domain.ProductFixture
 import com.commercelab.product.domain.ProductStatus
@@ -41,7 +42,7 @@ class ProductServiceTest {
         val product = productService.getProduct(registerProduct.id)
 
         assertThat(product.name).isEqualTo("수정상품1")
-        assertThat(product.price).isEqualTo(2000)
+        assertThat(product.price).isEqualTo(Money.of(2000))
     }
 
     @Test
