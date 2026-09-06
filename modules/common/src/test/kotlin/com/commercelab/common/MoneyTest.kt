@@ -7,6 +7,6 @@ class MoneyTest {
 
     @Test
     fun `음수를 넣을 수 없다`() {
-        assertFailsWith<IllegalArgumentException> { Money(-1) }
+        assertFailsWith<IllegalArgumentException> { Money.of(-1) }
     }
 }
